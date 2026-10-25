@@ -1,3 +1,5 @@
+import 'dart:math';
+
 /// One hourly forecast step, parsed from MET Norway Locationforecast.
 class WeatherHour {
   final DateTime time; // UTC
@@ -93,4 +95,54 @@ class WeatherSnapshot {
             .map((h) => WeatherHour.fromJson(Map<String, dynamic>.from(h)))
             .toList(),
       );
+}
+
+/// Scores each calendar day covered by [hours] for hiking comfort and
+/// returns the best day with a short Norwegian reason. Precipitation
+/// and gusts dominate the score; temperature nudges it toward ~12 °C.
+/// Returns null when the forecast covers fewer than two days.
+/// This is an estimate — mountain weather changes fast.
+({DateTime day, String reason})? bestHikingDay(List<WeatherHour> hours) {
+  final byDay = <DateTime, List<WeatherHour>>{};
+  for (final h in hours) {
+    final day = DateTime(h.time.year, h.time.month, h.time.day);
+    (byDay[day] ??= []).add(h);
+  }
+  if (byDay.length < 2) return null;
+  (DateTime, double, double, double)? best;
+  for (final entry in byDay.entries) {
+    final rain = entry.value.fold<double>(
+      0,
+      (sum, h) => sum + (h.precipitationMm ?? 0),
+    );
+    final wind = entry.value.fold<double>(
+      0,
+      (m, h) => max(m, h.windGust ?? h.windSpeed ?? 0),
+    );
+    var tempSum = 0.0;
+    var tempCount = 0;
+    for (final h in entry.value) {
+      final t = h.temperature;
+      if (t != null) {
+        tempSum += t;
+        tempCount++;
+      }
+    }
+    final temp = tempCount == 0 ? 0.0 : tempSum / tempCount;
+    final score = rain * 2 + wind + (temp - 12).abs() * 0.5;
+    if (best == null || score < best.$2) {
+      best = (entry.key, score, rain, wind);
+    }
+  }
+  if (best == null) return null;
+  final (day, _, rain, wind) = best;
+  final rainText = rain < 0.5
+      ? 'nesten tørt'
+      : '${rain.toStringAsFixed(1)} mm nedbør';
+  final windText = wind < 5
+      ? 'laber vind'
+      : wind < 10
+      ? 'noe vind'
+      : 'frisk vind';
+  return (day: day, reason: '$rainText og $windText');
 }

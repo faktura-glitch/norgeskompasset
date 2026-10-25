@@ -75,6 +75,34 @@ class _WeatherScreenState extends State<WeatherScreen> {
               'Turperiode: ${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
+            if (bestHikingDay(trip.weather['route']?.hours ?? const [])
+                case final best?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: NkCard(
+                  color: NkColors.forestGreen.withValues(alpha: 0.08),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.wb_sunny_outlined,
+                        color: NkColors.forestGreen,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Beste dag å gå (estimert): ${fmtDate(best.day)} – '
+                          '${best.reason}.',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (state.busy) const LinearProgressIndicator(),
             if (_weatherError != null)
               NkCard(

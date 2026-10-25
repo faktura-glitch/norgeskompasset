@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norgeskompasset/core/format.dart';
 import 'package:norgeskompasset/models/route_models.dart';
+import 'package:norgeskompasset/models/weather.dart';
 import 'package:norgeskompasset/services/geocoding_service.dart';
 
 Waypoint _wp(String name, WaypointType type) =>
@@ -75,6 +76,29 @@ void main() {
 
     test('returns null without usable names', () {
       expect(GeocodingService.placeNameFrom({'address': {}}), isNull);
+    });
+  });
+
+  group('bestHikingDay', () {
+    WeatherHour hour(DateTime t, {double rain = 0, double wind = 2}) =>
+        WeatherHour(
+          time: t,
+          temperature: 10,
+          precipitationMm: rain,
+          windSpeed: wind,
+        );
+
+    test('picks the driest day and returns null for one day', () {
+      final day1 = DateTime(2026, 6, 1, 10);
+      final day2 = DateTime(2026, 6, 2, 10);
+      final hours = [
+        for (var i = 0; i < 8; i++)
+          hour(day1.add(Duration(hours: i)), rain: 2),
+        for (var i = 0; i < 8; i++) hour(day2.add(Duration(hours: i))),
+      ];
+      final best = bestHikingDay(hours);
+      expect(best?.day, DateTime(2026, 6, 2));
+      expect(bestHikingDay(hours.sublist(0, 8)), isNull);
     });
   });
 }
