@@ -488,7 +488,7 @@ class TripRepository {
 
   /// Fetches every catalog entry (sorted newest first). Returns an
   /// empty list on failure/offline.
-  Future<List<CatalogTrip>> fetchCatalog() async {
+  Future<List<CatalogTrip>> fetchCatalog({bool includeHidden = false}) async {
     final catalog = _catalog;
     if (catalog == null) return const [];
     try {
@@ -496,7 +496,9 @@ class TripRepository {
       return [
         for (final d in snap.docs)
           if (CatalogTrip.fromJson(d.data()) case final e)
-            if (e.reportedBy.length < CatalogTrip.reportHideThreshold) e,
+            if (includeHidden ||
+                e.reportedBy.length < CatalogTrip.reportHideThreshold)
+              e,
       ];
     } catch (_) {
       return const [];
@@ -522,11 +524,31 @@ class TripRepository {
     }
   }
 
-  Future<void> deleteCatalogEntry(String id) async {
+  Future<bool> deleteCatalogEntry(String id) async {
     try {
       final doc = _catalog?.doc(id);
-      if (doc != null) await _serialize(() => doc.delete());
-    } catch (_) {}
+      if (doc == null) return false;
+      await _serialize(() => doc.delete());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Admin uids live in config/admins {uids: [...]} — maintained in the
+  /// Firebase console and enforced by the Firestore rules, never by the
+  /// app alone.
+  Future<bool> fetchIsAdmin() async {
+    final uid = _uid;
+    final db = _db;
+    if (uid == null || db == null) return false;
+    try {
+      final snap = await _serialize(() => db.doc('config/admins').get());
+      final uids = snap.data()?['uids'];
+      return uids is List && uids.contains(uid);
+    } catch (_) {
+      return false;
+    }
   }
 
   // ── Account deletion ───────────────────────────────────────

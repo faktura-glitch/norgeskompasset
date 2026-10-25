@@ -42,9 +42,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Finn tur'), findsOneWidget);
-    expect(find.text('Sognsvann – Ullevålseter'), findsOneWidget);
+    expect(find.text('Turer delt av brukere'), findsOneWidget);
+    // Built-in suggestions are gone — only user-shared tours remain.
+    expect(find.text('Sognsvann – Ullevålseter'), findsNothing);
     expect(find.text('Besseggen'), findsNothing);
+    expect(find.textContaining('Logg inn fra Mer'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(repo.saved, isEmpty);
     expect(state.trips, isEmpty);

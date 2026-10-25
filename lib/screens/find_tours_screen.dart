@@ -12,7 +12,6 @@ import '../services/tile_cache.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
-import '../widgets/local_tour_suggestions.dart';
 
 class FindToursScreen extends StatefulWidget {
   const FindToursScreen({super.key});
@@ -57,6 +56,7 @@ class _FindToursScreenState extends State<FindToursScreen> {
 
   Future<void> _showPublished(CatalogTrip entry) async {
     if (_saving) return;
+    final isAdmin = context.read<AppState>().isAdmin;
     DateTime? date;
     var days = entry.durationDays;
     var activity = entry.activity;
@@ -231,6 +231,15 @@ class _FindToursScreenState extends State<FindToursScreen> {
                 ),
               ),
               actions: [
+                if (isAdmin)
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Slett (admin)'),
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      _adminDelete(entry);
+                    },
+                  ),
                 TextButton.icon(
                   icon: const Icon(Icons.flag_outlined, size: 16),
                   label: const Text('Rapporter'),
@@ -287,6 +296,38 @@ class _FindToursScreenState extends State<FindToursScreen> {
     }
   }
 
+  /// Admins (config/admins in Firestore) may remove any shared tour.
+  Future<void> _adminDelete(CatalogTrip entry) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Slett delt tur?'),
+        content: Text(
+          '«${entry.name}» fjernes for alle brukere. Dette kan ikke angres.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Avbryt'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Slett'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final done = await context.read<AppState>().adminDeleteCatalogEntry(entry);
+    if (!mounted) return;
+    nkToast(
+      context,
+      done
+          ? 'Turen er slettet for alle.'
+          : 'Kunne ikke slette. Sjekk at din bruker-ID står i config/admins.',
+    );
+  }
+
   Future<void> _reportEntry(CatalogTrip entry) async {
     final ok = await context.read<AppState>().reportCatalogEntry(entry);
     if (!mounted) return;
@@ -309,7 +350,7 @@ class _FindToursScreenState extends State<FindToursScreen> {
           .contains(query),
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Finn tur')),
+      appBar: AppBar(title: const Text('Turer delt av brukere')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -321,19 +362,9 @@ class _FindToursScreenState extends State<FindToursScreen> {
             onChanged: (value) => setState(() => _query = value),
           ),
           const SizedBox(height: 16),
-          LocalTourSuggestions(
-            query: _query,
-            onRequestLocation: () {},
-            onImported: (_) => _openCreatedTrip(),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Turer delt av brukere',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
           if (state.localOnly)
             const Text(
-              'Logg inn fra Mer for å se brukerpubliserte turer. De lokale forslagene kan åpnes uten innlogging.',
+              'Logg inn fra Mer for å se turer som andre brukere har delt.',
             )
           else ...[
             TextButton.icon(
@@ -351,7 +382,8 @@ class _FindToursScreenState extends State<FindToursScreen> {
                 child: ListTile(
                   title: Text(entry.name),
                   subtitle: Text(
-                    '${entry.region} · ${fmtKm(entry.route.distanceMeters)}\nBrukerpublisert · ikke kontrollert',
+                    '${entry.region} · ${fmtKm(entry.route.distanceMeters)}\n'
+                    '${entry.reportedBy.length >= CatalogTrip.reportHideThreshold ? 'Skjult for brukere – ${entry.reportedBy.length} rapporter' : 'Brukerpublisert · ikke kontrollert'}',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _saving ? null : () => _showPublished(entry),

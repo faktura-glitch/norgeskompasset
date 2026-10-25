@@ -1480,7 +1480,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               context.read<NavController>().openMapExplore();
             },
             icon: const Icon(Icons.travel_explore_outlined),
-            label: const Text('Finn turforslag'),
+            label: const Text('Turer delt av andre'),
           ),
         ],
       );
@@ -1555,7 +1555,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => context.read<NavController>().openMapExplore(),
                 icon: const Icon(Icons.travel_explore_outlined, size: 16),
-                label: const Text('Finn turforslag'),
+                label: const Text('Turer delt av andre'),
               ),
             ),
             IconButton(

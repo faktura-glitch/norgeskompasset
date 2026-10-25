@@ -94,7 +94,7 @@ class _TripsScreenState extends State<TripsScreen> {
                     onPressed: () =>
                         context.read<NavController>().openMapExplore(),
                     icon: const Icon(Icons.travel_explore_outlined, size: 18),
-                    label: const Text('Se turforslag'),
+                    label: const Text('Turer delt av andre'),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
@@ -115,7 +115,7 @@ class _TripsScreenState extends State<TripsScreen> {
                       onPressed: () =>
                           context.read<NavController>().openMapExplore(),
                       icon: const Icon(Icons.hiking),
-                      label: const Text('Finn turforslag og turer fra andre'),
+                      label: const Text('Se turer delt av andre'),
                     ),
                   ),
                 ),

@@ -437,6 +437,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   List<CatalogTrip> catalog = const [];
   bool catalogLoaded = false;
 
+  /// True when the signed-in uid is listed in config/admins.
+  bool isAdmin = false;
+
   Future<void> loadCatalog({bool force = false}) async {
     if (localOnly) {
       lastError = 'Logg inn fra Mer for å åpne turkatalogen.';
@@ -444,9 +447,26 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     if (catalogLoaded && !force) return;
-    catalog = await repo.fetchCatalog();
+    isAdmin = await repo.fetchIsAdmin();
+    // Admins also see entries hidden by reports, so they can review them.
+    catalog = await repo.fetchCatalog(includeHidden: isAdmin);
     catalogLoaded = true;
     notifyListeners();
+  }
+
+  /// Removes any shared tour — the Firestore rules only allow this for
+  /// uids in config/admins.
+  Future<bool> adminDeleteCatalogEntry(CatalogTrip entry) async {
+    if (!isAdmin) return false;
+    final ok = await repo.deleteCatalogEntry(entry.id);
+    if (ok) {
+      catalog = [
+        for (final e in catalog)
+          if (e.id != entry.id) e,
+      ];
+      notifyListeners();
+    }
+    return ok;
   }
 
   /// Reports a catalog entry as inappropriate or misleading.
