@@ -27,7 +27,6 @@ import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
 import '../widgets/trip_details_sheet.dart';
-import 'elevation_screen.dart';
 
 /// Kartverket topo tiles (free) with OSM fallback.
 const _kartverketTopo =
@@ -134,6 +133,17 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   /// or GPS is unavailable.
   Future<void> _centerOnUser() async {
     try {
+      // Without permission every position call fails silently, so the
+      // map would never follow the user. Ask once at startup.
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever ||
+          !await Geolocator.isLocationServiceEnabled()) {
+        return;
+      }
       Position? pos = await Geolocator.getLastKnownPosition();
       // A cached fix that fails the sanity checks must not decide the
       // map view — Windows can report a stale network-based position.
@@ -146,13 +156,15 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         );
       }
       if (!mounted || !_usablePosition(pos)) return;
+      // Show the position dot even when the view stays on the trip.
+      setState(() => _userLatLng = LatLng(pos!.latitude, pos.longitude));
       // Don't steal the view if the trip already has content.
       if (widget.highlight != null ||
           _anchors.isNotEmpty ||
           _trip?.route?.hasRoute == true) {
         return;
       }
-      _mapCtrl.move(LatLng(pos.latitude, pos.longitude), 11);
+      _mapCtrl.move(_userLatLng!, 12);
     } catch (_) {
       // No position available — keep the default overview.
     }
@@ -1141,12 +1153,18 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                             () {
                               if (!mounted) return;
                               if (_mapCtrl.camera.zoom < 8) {
+                                // Trails are only fetched from zoom 8 —
+                                // zoom in for the user instead of asking
+                                // them to; the move triggers the fetch.
+                                _mapCtrl.move(_mapCtrl.camera.center, 9);
                                 nkToast(
                                   context,
-                                  'Zoom litt nærmere — ruter hentes per kartutsnitt',
+                                  'Zoomet inn – turruter hentes for '
+                                  'kartutsnittet du ser.',
                                 );
+                              } else {
+                                _onCameraMoved(_mapCtrl.camera, false);
                               }
-                              _onCameraMoved(_mapCtrl.camera, false);
                             },
                           );
                         }
@@ -1620,14 +1638,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: route?.hasRoute == true
-                  ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ElevationScreen(),
-                      ),
-                    )
+                  ? () => context.read<NavController>().goTo(3)
                   : null,
-              icon: const Icon(Icons.terrain, size: 18),
+              icon: const Icon(Icons.backpack_outlined, size: 18),
               label: const Text('Neste: Pakking og vær'),
             ),
           ),
@@ -2747,63 +2760,102 @@ class _WaypointRow extends StatelessWidget {
               ),
             ),
           ),
-          if (onMove != null)
-            IconButton(
-              tooltip: 'Flytt punktet – trykk deretter på kartet',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                Icons.open_with,
-                size: 17,
-                color: NkColors.textSecondary,
+          // Small status marks instead of a row of buttons, so the
+          // icons never crowd each other in a narrow panel.
+          if (waypoint.straightLeg && hasIncomingLeg)
+            const Tooltip(
+              message: 'Strekningen hit er rett linje (estimat)',
+              child: Icon(
+                Icons.timeline,
+                size: 16,
+                color: NkColors.warningAmber,
               ),
-              onPressed: onMove,
             ),
-          if (hasIncomingLeg)
-            IconButton(
-              tooltip: waypoint.straightLeg
-                  ? 'Strekningen hit er rett linje – trykk for stiruting'
-                  : 'Tegn strekningen hit som rett linje (estimat)',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                waypoint.straightLeg ? Icons.timeline : Icons.timeline_outlined,
-                size: 17,
-                color: waypoint.straightLeg
-                    ? NkColors.warningAmber
-                    : NkColors.textSecondary,
+          PopupMenuButton<String>(
+            tooltip: 'Valg for punktet',
+            icon: const Icon(Icons.more_vert, size: 18),
+            padding: EdgeInsets.zero,
+            onSelected: (v) {
+              switch (v) {
+                case 'rename':
+                  _rename(context);
+                case 'move':
+                  onMove?.call();
+                case 'straight':
+                  waypoint.straightLeg = !waypoint.straightLeg;
+                  onChanged();
+                case 'overnight':
+                  waypoint.type = waypoint.type == WaypointType.overnight
+                      ? WaypointType.waypoint
+                      : WaypointType.overnight;
+                  onChanged();
+                case 'remove':
+                  onRemove();
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'rename',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Gi punktet navn'),
+                ),
               ),
-              onPressed: () {
-                waypoint.straightLeg = !waypoint.straightLeg;
-                onChanged();
-              },
-            ),
-          if (waypoint.type == WaypointType.waypoint ||
-              waypoint.type == WaypointType.overnight)
-            IconButton(
-              tooltip: waypoint.type == WaypointType.overnight
-                  ? 'Gjør til vanlig punkt'
-                  : 'Merk som overnatting',
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                waypoint.type == WaypointType.overnight
-                    ? Icons.bed
-                    : Icons.bed_outlined,
-                size: 17,
-                color: waypoint.type == WaypointType.overnight
-                    ? NkColors.primaryBlue
-                    : NkColors.textSecondary,
+              if (onMove != null)
+                const PopupMenuItem(
+                  value: 'move',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.open_with),
+                    title: Text('Flytt punktet – trykk så i kartet'),
+                  ),
+                ),
+              if (hasIncomingLeg)
+                PopupMenuItem(
+                  value: 'straight',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      waypoint.straightLeg
+                          ? Icons.timeline
+                          : Icons.timeline_outlined,
+                    ),
+                    title: Text(
+                      waypoint.straightLeg
+                          ? 'Bruk stiruting hit'
+                          : 'Rett linje hit (estimat)',
+                    ),
+                  ),
+                ),
+              if (waypoint.type == WaypointType.waypoint ||
+                  waypoint.type == WaypointType.overnight)
+                PopupMenuItem(
+                  value: 'overnight',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      waypoint.type == WaypointType.overnight
+                          ? Icons.bed
+                          : Icons.bed_outlined,
+                    ),
+                    title: Text(
+                      waypoint.type == WaypointType.overnight
+                          ? 'Gjør til vanlig punkt'
+                          : 'Merk som overnatting',
+                    ),
+                  ),
+                ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'remove',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.close, color: NkColors.dangerRed),
+                  title: Text('Fjern punkt'),
+                ),
               ),
-              onPressed: () {
-                waypoint.type = waypoint.type == WaypointType.overnight
-                    ? WaypointType.waypoint
-                    : WaypointType.overnight;
-                onChanged();
-              },
-            ),
-          IconButton(
-            tooltip: 'Fjern punkt',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close, size: 17, color: NkColors.dangerRed),
-            onPressed: onRemove,
+            ],
           ),
         ],
       ),

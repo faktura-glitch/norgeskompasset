@@ -134,7 +134,8 @@ class TurrutebaseService {
     try {
       res = await http
           .get(uri, headers: {'User-Agent': kUserAgent})
-          .timeout(const Duration(seconds: 25));
+          // Responses run to ~1.5 MB of GML for 400 routes.
+          .timeout(const Duration(seconds: 45));
     } catch (e) {
       throw ServiceException(
         'Fikk ikke hentet turruter (${describeNetworkError(e)}).',
