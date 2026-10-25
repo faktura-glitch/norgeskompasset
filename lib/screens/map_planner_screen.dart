@@ -603,6 +603,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   Future<void> _showQuickSetup(Trip trip) async {
     final state = context.read<AppState>();
     final activityBefore = trip.activity;
+    final startBefore = trip.startDate;
+    final endBefore = trip.endDate;
+    final seasonBefore = trip.season;
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -617,8 +620,18 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         _routeDirty = true;
       }
     });
+    if (trip.startDate != startBefore || trip.endDate != endBefore) {
+      await state.reanalyze(trip, datesChanged: true);
+    }
     await state.updateParticipants(trip);
-    if (mounted) nkToast(context, 'Pakkelisten er oppdatert.');
+    if (!mounted) return;
+    nkToast(
+      context,
+      trip.season != seasonBefore
+          ? 'Sesong satt til ${trip.season.label} ut fra startdatoen – '
+                'pakkelisten er oppdatert.'
+          : 'Pakkelisten er oppdatert.',
+    );
   }
 
   Future<void> _clearRoute() async {
@@ -1520,6 +1533,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               trip.activity.label,
               trip.accommodation.label,
               trip.season.label,
+              trip.startDate == null
+                  ? 'Dato ikke satt'
+                  : fmtDate(trip.startDate),
               fmtCount(trip.hikingDays, 'dag', 'dager'),
               fmtCount(trip.participants, 'person', 'personer'),
               if (trip.withDog ?? context.read<AppState>().profile.withDog)
@@ -2051,23 +2067,7 @@ class _TripConfigState extends State<_TripConfig> {
     setState(() {
       if (start) {
         // Moving the start keeps the number of days.
-        final span = trip.startDate != null && trip.endDate != null
-            ? trip.endDate!.difference(trip.startDate!)
-            : Duration.zero;
-        trip.startDate = picked;
-        trip.endDate = picked.add(span.isNegative ? Duration.zero : span);
-        // The packing rules follow the season, so keep it in step
-        // with the chosen start date.
-        final season = TurrutebaseService.seasonForDate(picked);
-        if (season != trip.season) {
-          seasonChanged = true;
-          trip.season = season;
-          if (season == TripSeason.winter &&
-              trip.activity == TripActivity.paddle) {
-            trip.activity = TripActivity.foot;
-            trip.carry = CarryMode.backpack;
-          }
-        }
+        seasonChanged = _applyDates(trip, picked, trip.hikingDays);
       } else {
         trip.endDate = picked.isBefore(trip.startDate ?? picked)
             ? trip.startDate
@@ -2407,6 +2407,22 @@ class _TripConfigState extends State<_TripConfig> {
   }
 }
 
+/// Sets the start date and trip length. The packing rules follow the
+/// season, so it is kept in step with the date (and a paddling trip
+/// can't stay on winter). Returns true when the season changed.
+bool _applyDates(Trip trip, DateTime start, int days) {
+  trip.startDate = start;
+  trip.endDate = start.add(Duration(days: days.clamp(1, 60) - 1));
+  final season = TurrutebaseService.seasonForDate(start);
+  if (season == trip.season) return false;
+  trip.season = season;
+  if (season == TripSeason.winter && trip.activity == TripActivity.paddle) {
+    trip.activity = TripActivity.foot;
+    trip.carry = CarryMode.backpack;
+  }
+  return true;
+}
+
 /// Applies [v] and keeps season and carry mode consistent with it.
 void _applyActivity(Trip trip, TripActivity v) {
   trip.activity = v;
@@ -2439,6 +2455,19 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late int _people = widget.trip.participants;
   late bool _dog = widget.trip.withDog ?? widget.dogDefault;
   late bool? _terrain = widget.trip.avalancheTerrain;
+  late DateTime? _start = widget.trip.startDate;
+  late int _days = widget.trip.hikingDays.clamp(1, 60).toInt();
+
+  Future<void> _pickStart() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _start ?? DateTime.now().add(const Duration(days: 14)),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 540)),
+      helpText: 'Startdato',
+    );
+    if (picked != null && mounted) setState(() => _start = picked);
+  }
 
   Widget _question(String text) => Padding(
     padding: const EdgeInsets.only(top: 16, bottom: 6),
@@ -2464,6 +2493,7 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
 
   void _apply() {
     final t = widget.trip;
+    if (_start != null) _applyDates(t, _start!, _days);
     _applyActivity(t, _activity);
     if (_activity == TripActivity.ski) t.avalancheTerrain = _terrain;
     t.accommodation = _accommodation;
@@ -2524,6 +2554,40 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               _accommodation,
               (v) => _accommodation = v,
             ),
+            _question('Når?'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickStart,
+                    icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                    label: Text(
+                      _start == null ? 'Velg startdato' : fmtDate(_start),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Én dag kortere',
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: _days > 1 ? () => setState(() => _days--) : null,
+                ),
+                Text(
+                  fmtCount(_days, 'dag', 'dager'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                IconButton(
+                  tooltip: 'Én dag lengre',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: _days < 60 ? () => setState(() => _days++) : null,
+                ),
+              ],
+            ),
+            if (_start == null)
+              Text(
+                'Datoen trengs for å hente riktig værvarsel og sesong.',
+                style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+              ),
             _question('Hvem blir med?'),
             Row(
               children: [
