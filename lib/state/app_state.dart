@@ -1070,6 +1070,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       } catch (_) {
         // Varsom failure must not break weather fetch — keep old data.
       }
+      // The packing rules read the forecast (min temp, rain, wind,
+      // freezing nights) — regenerate so the list reflects it.
+      await _refreshPlan(trip);
       recommendationEngine.refresh(trip, profile: profile);
       await repo.saveTrip(trip);
     });

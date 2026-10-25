@@ -1359,6 +1359,43 @@ class _PlanningBasis extends StatelessWidget {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                 ),
+                // One tap to feed the forecast into the rules — the list
+                // is regenerated with min temp, rain, wind and cold nights.
+                if (trip.route?.hasRoute == true)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    onPressed: context.watch<AppState>().busy
+                        ? null
+                        : () async {
+                            final state = context.read<AppState>();
+                            await state.fetchWeather(trip);
+                            if (!context.mounted) return;
+                            if (state.lastError != null) {
+                              nkToast(context, state.lastError!);
+                              return;
+                            }
+                            final min = PackingEngine()
+                                .conditionsFor(trip, state.profile)
+                                .minTemp;
+                            nkToast(
+                              context,
+                              min == null
+                                  ? 'Værvarsel hentet – pakkelisten er oppdatert.'
+                                  : 'Værvarsel hentet (min ${min.round()} °C) – '
+                                        'pakkelisten er oppdatert.',
+                            );
+                          },
+                    icon: const Icon(Icons.cloud_download_outlined, size: 16),
+                    label: Text(
+                      ctx.weatherQuality == DataQuality.missing
+                          ? 'Hent vær'
+                          : 'Oppdater vær',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
