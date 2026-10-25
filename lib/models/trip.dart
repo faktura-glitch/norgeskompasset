@@ -22,7 +22,9 @@ extension TripStatusX on TripStatus {
   };
 }
 
-enum AccommodationType { tent, cabin, dayHike, mixed }
+/// [cabinBase]: the group sleeps in one cabin and does day trips from
+/// it — cabin kit plus a small daypack, no tent.
+enum AccommodationType { tent, cabin, dayHike, mixed, cabinBase }
 
 extension AccommodationTypeX on AccommodationType {
   String get label => switch (this) {
@@ -30,6 +32,19 @@ extension AccommodationTypeX on AccommodationType {
     AccommodationType.cabin => 'Hytte',
     AccommodationType.dayHike => 'Dagstur',
     AccommodationType.mixed => 'Telt og hytte',
+    AccommodationType.cabinBase => 'Hyttebase',
+  };
+}
+
+/// Kind of ski trip — decides skins, helmet and whether the
+/// avalanche trio is relevant at all (not in prepared tracks).
+enum SkiStyle { fjellski, touring, track }
+
+extension SkiStyleX on SkiStyle {
+  String get label => switch (this) {
+    SkiStyle.fjellski => 'Fjellski',
+    SkiStyle.touring => 'Topptur',
+    SkiStyle.track => 'Langrenn i løyper',
   };
 }
 
@@ -182,6 +197,15 @@ class Trip {
   /// Children in the group (counted within [participants]). Slows the
   /// pace and adds spare clothes/snacks to the packing list.
   int children;
+
+  /// Only meaningful when [activity] is ski.
+  SkiStyle skiStyle;
+
+  /// Snowshoes on a winter foot trip.
+  bool snowshoes;
+
+  /// Fishing along the way — adds rod, licence reminder and knife.
+  bool fishing;
   String notes;
   String? localTourId;
   HikingRoute? route;
@@ -237,6 +261,9 @@ class Trip {
     this.participants = 1,
     this.withDog,
     this.children = 0,
+    this.skiStyle = SkiStyle.fjellski,
+    this.snowshoes = false,
+    this.fishing = false,
     this.notes = '',
     this.localTourId,
     this.route,
@@ -313,6 +340,9 @@ class Trip {
     'participants': participants,
     if (withDog != null) 'withDog': withDog,
     if (children > 0) 'children': children,
+    if (skiStyle != SkiStyle.fjellski) 'skiStyle': skiStyle.name,
+    if (snowshoes) 'snowshoes': true,
+    if (fishing) 'fishing': true,
     'notes': notes,
     if (localTourId != null) 'localTourId': localTourId,
     'route': route?.toJson(),
@@ -355,6 +385,9 @@ class Trip {
     participants: j['participants'] as int? ?? 1,
     withDog: j['withDog'] as bool?,
     children: j['children'] as int? ?? 0,
+    skiStyle: SkiStyle.values.asNameMap()[j['skiStyle']] ?? SkiStyle.fjellski,
+    snowshoes: j['snowshoes'] as bool? ?? false,
+    fishing: j['fishing'] as bool? ?? false,
     notes: j['notes'] as String? ?? '',
     localTourId: j['localTourId'] as String?,
     route: j['route'] != null
@@ -436,6 +469,9 @@ class Trip {
     'part': participants,
     if (withDog != null) 'dog': withDog,
     if (children > 0) 'kids': children,
+    if (skiStyle != SkiStyle.fjellski) 'ss': skiStyle.name,
+    if (snowshoes) 'tr': true,
+    if (fishing) 'fi': true,
     if (notes.isNotEmpty) 'notes': notes,
     if (localTourId != null) 'localTour': localTourId,
     if (route != null) 'route': route!.toCompactJson(),
@@ -474,6 +510,9 @@ class Trip {
       participants: j['part'] as int? ?? 1,
       withDog: j['dog'] as bool?,
       children: j['kids'] as int? ?? 0,
+      skiStyle: SkiStyle.values.asNameMap()[j['ss']] ?? SkiStyle.fjellski,
+      snowshoes: j['tr'] as bool? ?? false,
+      fishing: j['fi'] as bool? ?? false,
       notes: j['notes'] as String? ?? '',
       localTourId: j['localTour'] as String?,
       route: j['route'] != null

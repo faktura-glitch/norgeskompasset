@@ -47,6 +47,9 @@ class TripConditions {
   final bool coldSensitive;
   final bool ownsTent;
   final bool ownsStove;
+  final SkiStyle skiStyle;
+  final bool snowshoes;
+  final bool fishing;
 
   const TripConditions({
     required this.activity,
@@ -69,12 +72,17 @@ class TripConditions {
     this.coldSensitive = false,
     this.ownsTent = true,
     this.ownsStove = true,
+    this.skiStyle = SkiStyle.fjellski,
+    this.snowshoes = false,
+    this.fishing = false,
   });
 
   bool get overnight => accommodation != AccommodationType.dayHike;
   bool get mixed => accommodation == AccommodationType.mixed;
   bool get tent => accommodation == AccommodationType.tent || mixed;
-  bool get cabin => accommodation == AccommodationType.cabin || mixed;
+  bool get cabinBase => accommodation == AccommodationType.cabinBase;
+  bool get cabin =>
+      accommodation == AccommodationType.cabin || mixed || cabinBase;
   bool get multiDay => days > 1;
 
   /// Snow or a known forecast at/below freezing — real winter camping.
@@ -207,15 +215,21 @@ class GearItem {
     if (excludeCarry.contains(carry) || excludeCarry.contains(c.carry)) {
       return false;
     }
-    // A mixed trip (tent some nights, cabin others) needs both kits.
+    // A cabin base follows the cabin rules; a mixed trip (tent some
+    // nights, cabin others) needs both kits.
+    final acc = c.cabinBase ? AccommodationType.cabin : c.accommodation;
     if (accommodation.isNotEmpty &&
+        !accommodation.contains(acc) &&
         !accommodation.contains(c.accommodation) &&
         !(c.mixed &&
             (accommodation.contains(AccommodationType.tent) ||
                 accommodation.contains(AccommodationType.cabin)))) {
       return false;
     }
-    if (excludeAccommodation.contains(c.accommodation)) return false;
+    if (excludeAccommodation.contains(acc) ||
+        excludeAccommodation.contains(c.accommodation)) {
+      return false;
+    }
     if (seasons.isNotEmpty && !seasons.contains(c.season)) return false;
     if (c.days < minDays) return false;
     if (needsWeather.any((f) => !c.has(f))) return false;

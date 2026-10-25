@@ -89,6 +89,46 @@ void main() {
     expect(Trip.fromJson(trip.toJson()).children, 2);
   });
 
+  test('ski style decides skins, helmet and avalanche trio', () {
+    final touring = _tent(TripSeason.winter)
+      ..activity = TripActivity.ski
+      ..skiStyle = SkiStyle.touring
+      ..avalancheTerrain = true;
+    expect(_ids(touring), containsAll(['skins', 'tourhelmet', 'beacon']));
+    expect(_ids(touring), isNot(contains('wax')));
+
+    final track = _tent(TripSeason.winter)
+      ..activity = TripActivity.ski
+      ..skiStyle = SkiStyle.track
+      ..avalancheTerrain = false;
+    final trackIds = _ids(track);
+    expect(trackIds, contains('wax'));
+    expect(trackIds, isNot(contains('skins')));
+    expect(trackIds, isNot(contains('tourhelmet')));
+    expect(trackIds, isNot(contains('beacon')));
+    expect(Trip.fromJson(track.toJson()).skiStyle, SkiStyle.track);
+  });
+
+  test('snowshoes and fishing are opt-in extras', () {
+    final winterFoot = _tent(TripSeason.winter);
+    expect(_ids(winterFoot), isNot(contains('truger')));
+    winterFoot.snowshoes = true;
+    expect(_ids(winterFoot), contains('truger'));
+
+    final fishing = _tent(TripSeason.summer)..fishing = true;
+    expect(_ids(fishing), containsAll(['fishingrod', 'fishinglicense']));
+    expect(_ids(_tent(TripSeason.summer)), isNot(contains('fishingrod')));
+    expect(Trip.fromJson(fishing.toJson()).fishing, isTrue);
+  });
+
+  test('cabin base gets the cabin kit, a daypack and no tent', () {
+    final trip = _tent(TripSeason.summer)
+      ..accommodation = AccommodationType.cabinBase;
+    final ids = _ids(trip);
+    expect(ids, containsAll(['hutsheet', 'basedaypack']));
+    expect(ids, isNot(contains('tent')));
+  });
+
   test('trip-level dog choice overrides the profile', () {
     final trip = _tent(TripSeason.summer);
     final engine = PackingEngine();

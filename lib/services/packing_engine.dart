@@ -56,6 +56,9 @@ class PackingEngine {
         ? AvalancheRisk.yes
         : trip.avalancheTerrain == false
         ? AvalancheRisk.none
+        // Prepared tracks are not avalanche terrain.
+        : (trip.activity == TripActivity.ski && trip.skiStyle == SkiStyle.track)
+        ? AvalancheRisk.none
         : (winter || trip.activity == TripActivity.ski)
         ? AvalancheRisk.uncertain
         : AvalancheRisk.none;
@@ -68,6 +71,9 @@ class PackingEngine {
       days: trip.hikingDays,
       people: trip.participants.clamp(1, 20),
       children: trip.children.clamp(0, 20),
+      skiStyle: trip.skiStyle,
+      snowshoes: trip.snowshoes,
+      fishing: trip.fishing,
       minTemp: minTemp,
       rain: rain,
       strongWind: wind,

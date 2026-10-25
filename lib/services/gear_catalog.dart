@@ -460,7 +460,10 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.required,
     activities: {TripActivity.foot},
-    seasons: {TripSeason.winter},
+    // Opt-in on a winter foot trip; always when hauling a pulk on foot.
+    extra: (c) =>
+        c.snowshoes ||
+        (c.carry == CarryMode.pulk && c.season == TripSeason.winter),
     reason: 'Dyp snø på fots – truger fordeler vekten',
   ),
   GearItem(
@@ -477,12 +480,17 @@ final List<GearItem> gearCatalog = List.unmodifiable([
   // ── Ski ─────────────────────────────────────────────────
   GearItem(
     'ski',
-    'Ski (fjellski)',
+    'Ski og bindinger',
     PackingCategory.additional,
     2800,
     perPerson: true,
     priority: PackingPriority.required,
     activities: {TripActivity.ski},
+    reasonFn: (c) => switch (c.skiStyle) {
+      SkiStyle.touring => 'Toppturski/randonee med feller og støvler',
+      SkiStyle.fjellski => 'Fjellski med stålkanter til løst føre',
+      SkiStyle.track => 'Langrennsski til preparerte løyper',
+    },
   ),
   GearItem(
     'skistaves',
@@ -500,6 +508,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     50,
     perPerson: true,
     activities: {TripActivity.ski},
+    extra: (c) => c.skiStyle != SkiStyle.touring,
     reason: 'Smørebokser tilpasset føret',
   ),
   GearItem(
@@ -509,7 +518,31 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     250,
     perPerson: true,
     activities: {TripActivity.ski},
-    reason: 'Ta alltid med to feller på langtur',
+    extra: (c) => c.skiStyle != SkiStyle.track,
+    reasonFn: (c) => c.skiStyle == SkiStyle.touring
+        ? 'Feller er selve oppstigningen på topptur'
+        : 'Ta alltid med to feller på langtur',
+  ),
+  GearItem(
+    'tourhelmet',
+    'Hjelm (topptur)',
+    PackingCategory.safetyFirstAid,
+    400,
+    perPerson: true,
+    priority: PackingPriority.required,
+    activities: {TripActivity.ski},
+    extra: (c) => c.skiStyle == SkiStyle.touring,
+    reason: 'Nedkjøring i ukjent terreng – hjelm er standard på topptur',
+  ),
+  GearItem(
+    'iceaxe',
+    'Isøks',
+    PackingCategory.additional,
+    450,
+    priority: PackingPriority.optional,
+    activities: {TripActivity.ski},
+    extra: (c) => c.skiStyle == SkiStyle.touring,
+    reason: 'Bratte, harde flanker på topptur',
   ),
   GearItem(
     'goggles',
@@ -1208,6 +1241,47 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     priority: PackingPriority.required,
     extra: (c) => c.carry == CarryMode.kayak,
     reason: 'Egenredning etter velt – øv på det før turen',
+  ),
+  // ── Fishing along the way ────────────────────────────────
+  GearItem(
+    'fishingrod',
+    'Fiskestang, snelle og sluker',
+    PackingCategory.additional,
+    900,
+    perPerson: true,
+    priority: PackingPriority.recommended,
+    extra: (c) => c.fishing,
+    reason: 'Teleskopstang eller firedelt stang går i sekken',
+  ),
+  GearItem(
+    'fishinglicense',
+    'Fiskekort og fiskeregler',
+    PackingCategory.personal,
+    0,
+    priority: PackingPriority.required,
+    extra: (c) => c.fishing,
+    reason:
+        'Innlandsfiske krever fiskekort for alle over 16 år – kjøp på '
+        'inatur.no. Sjøfiske med stang er gratis.',
+  ),
+  GearItem(
+    'fishknife',
+    'Kniv og pose til fisken',
+    PackingCategory.additional,
+    150,
+    extra: (c) => c.fishing,
+    reason: 'Sløying og oppbevaring',
+  ),
+  // ── Cabin base: day trips from the hut ─────────────────────
+  GearItem(
+    'basedaypack',
+    'Liten dagstursekk (20–30 l)',
+    PackingCategory.additional,
+    700,
+    perPerson: true,
+    priority: PackingPriority.required,
+    extra: (c) => c.cabinBase,
+    reason: 'Dagsturene fra hytta går med lett sekk – den store blir igjen',
   ),
   // ── Children in the group ─────────────────────────────────
   GearItem(

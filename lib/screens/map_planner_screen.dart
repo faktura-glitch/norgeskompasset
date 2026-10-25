@@ -1539,6 +1539,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               fmtCount(trip.hikingDays, 'dag', 'dager'),
               fmtCount(trip.participants, 'person', 'personer'),
               if (trip.children > 0) '${trip.children} barn',
+              if (trip.activity == TripActivity.ski) trip.skiStyle.label,
+              if (trip.snowshoes) 'Truger',
+              if (trip.fishing) 'Fiske',
               if (trip.withDog ?? context.read<AppState>().profile.withDog)
                 'Hund',
             ])
@@ -2479,6 +2482,9 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late int _people = widget.trip.participants;
   late int _children = widget.trip.children;
   late CarryMode _carry = widget.trip.carry;
+  late SkiStyle _skiStyle = widget.trip.skiStyle;
+  late bool _snowshoes = widget.trip.snowshoes;
+  late bool _fishing = widget.trip.fishing;
   late bool _dog = widget.trip.withDog ?? widget.dogDefault;
   late bool? _terrain = widget.trip.avalancheTerrain;
   late DateTime? _start = widget.trip.startDate;
@@ -2521,7 +2527,13 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
     final t = widget.trip;
     if (_start != null) _applyDates(t, _start!, _days);
     _applyActivity(t, _activity);
-    if (_activity == TripActivity.ski) t.avalancheTerrain = _terrain;
+    t.skiStyle = _skiStyle;
+    if (_activity == TripActivity.ski) {
+      // Prepared tracks are not avalanche terrain.
+      t.avalancheTerrain = _skiStyle == SkiStyle.track ? false : _terrain;
+    }
+    t.snowshoes = _activity == TripActivity.foot && _snowshoes;
+    t.fishing = _fishing;
     if (_activity == TripActivity.paddle && _carry.isPaddle) t.carry = _carry;
     t.accommodation = _accommodation;
     t.participants = _people;
@@ -2565,6 +2577,15 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               ),
             ],
             if (_activity == TripActivity.ski) ...[
+              _question('Hva slags skitur?'),
+              _choices<SkiStyle>(
+                [for (final s in SkiStyle.values) (s, s.label)],
+                _skiStyle,
+                (v) => _skiStyle = v,
+              ),
+            ],
+            if (_activity == TripActivity.ski &&
+                _skiStyle != SkiStyle.track) ...[
               _question('Går turen i skredterreng?'),
               _choices<bool?>(
                 const <(bool?, String)>[
@@ -2582,6 +2603,7 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                 for (final a in const [
                   AccommodationType.dayHike,
                   AccommodationType.cabin,
+                  AccommodationType.cabinBase,
                   AccommodationType.tent,
                   AccommodationType.mixed,
                 ])
@@ -2589,6 +2611,38 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               ],
               _accommodation,
               (v) => _accommodation = v,
+            ),
+            if (_accommodation == AccommodationType.cabinBase)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Dere bor på hytta og går dagsturer derfra. Tegn ruten som en '
+                  'rundtur fra hytta; pakkelisten gir hytteutstyr og liten '
+                  'dagstursekk.',
+                  style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+                ),
+              ),
+            _question('Annet?'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Jeg skal fiske'),
+                  selected: _fishing,
+                  onSelected: (v) => setState(() => _fishing = v),
+                ),
+                if (_activity == TripActivity.foot &&
+                    (_start != null
+                            ? TurrutebaseService.seasonForDate(_start!)
+                            : widget.trip.season) ==
+                        TripSeason.winter)
+                  FilterChip(
+                    label: const Text('Truger med'),
+                    selected: _snowshoes,
+                    onSelected: (v) => setState(() => _snowshoes = v),
+                  ),
+              ],
             ),
             _question('Når?'),
             Row(

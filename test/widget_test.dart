@@ -418,7 +418,14 @@ void main() {
       expect(has('skredsøker'), isTrue);
       expect(has('skredspade'), isTrue);
       expect(has('søkestang'), isTrue);
-      expect(has('truger'), isTrue);
+      // Snowshoes are opt-in («Truger med») on a winter foot trip.
+      expect(has('truger'), isFalse);
+      final withSnowshoes = PackingEngine().generate(
+        trip()
+          ..season = TripSeason.winter
+          ..snowshoes = true,
+      );
+      expect(withSnowshoes.any((i) => i.id == 'truger'), isTrue);
       // Winter forces cold assumptions even without a forecast.
       expect(
         items.firstWhere((i) => i.name.contains('Varmeputer')).priority,
