@@ -2440,6 +2440,29 @@ void _applyActivity(Trip trip, TripActivity v) {
   }
 }
 
+/// Opens the same quick questions from other screens (e.g. the packing
+/// list) and applies the follow-ups: dates changed → reanalyze,
+/// participants → regenerate. Returns true when the user confirmed.
+Future<bool> showTripQuickSetup(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  final startBefore = trip.startDate;
+  final endBefore = trip.endDate;
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) =>
+        _QuickSetupSheet(trip: trip, dogDefault: state.profile.withDog),
+  );
+  if (ok != true) return false;
+  if (trip.startDate != startBefore || trip.endDate != endBefore) {
+    await state.reanalyze(trip, datesChanged: true);
+  }
+  await state.updateParticipants(trip);
+  if (context.mounted) nkToast(context, 'Pakkelisten er oppdatert.');
+  return true;
+}
+
 /// The three quick questions that decide the packing list.
 class _QuickSetupSheet extends StatefulWidget {
   final Trip trip;

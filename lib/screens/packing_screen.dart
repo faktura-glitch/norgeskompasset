@@ -12,8 +12,165 @@ import '../services/planning_context.dart';
 import '../services/packing_engine.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
+import 'map_planner_screen.dart' show showTripQuickSetup;
+import 'meals_screen.dart';
 
 enum _Filter { all, recommended, missing, packed, inPack, worn, acquire }
+
+String _gearName(String id) => switch (id) {
+  'food-total' => 'Mat (fra måltidsplanen)',
+  'water-total' => 'Vann (fra måltidsplanen)',
+  _ => gearCatalog.where((g) => g.id == id).firstOrNull?.name ?? id,
+};
+
+/// Suggestions the user swiped away. Putting one back clears its
+/// tombstone and regenerates the list (packed state is preserved).
+Future<void> showRemovedItemsSheet(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            const Text(
+              'Fjernede gjenstander',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              trip.deletedGearIds.isEmpty
+                  ? 'Du har ikke fjernet noen forslag fra denne listen. '
+                        'Sveip en gjenstand til venstre, eller trykk på den og '
+                        'velg «Fjern fra listen».'
+                  : 'Disse forslagene kommer ikke tilbake når listen lages på '
+                        'nytt. Trykk «Legg tilbake» for å få dem igjen.',
+              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            for (final id in trip.deletedGearIds.toList())
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.remove_circle_outline),
+                title: Text(_gearName(id)),
+                trailing: TextButton(
+                  onPressed: () async {
+                    trip.deletedGearIds.remove(id);
+                    await state.generatePackingList(trip);
+                    if (ctx.mounted) setS(() {});
+                  },
+                  child: const Text('Legg tilbake'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Quick access to the two consumables most people adjust: water
+/// (often left out when there are streams) and the meal plan.
+Future<void> showFoodWaterSheet(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  if (trip.mealPlan == null) {
+    await state.generateMealPlan(trip);
+  }
+  if (!context.mounted) return;
+  final plan = trip.mealPlan;
+  if (plan == null) {
+    nkToast(context, 'Kunne ikke lage måltidsplan for turen.');
+    return;
+  }
+  var liters = plan.waterLitersPerPersonDay;
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            16 + MediaQuery.viewInsetsOf(ctx).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Mat og vann',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Vann som bæres: ${liters.toStringAsFixed(1)} l per person per dag',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Slider(
+                value: liters.clamp(0, 4),
+                min: 0,
+                max: 4,
+                divisions: 8,
+                label: '${liters.toStringAsFixed(1)} l',
+                onChanged: (v) => setS(() => liters = v),
+              ),
+              Text(
+                liters == 0
+                    ? 'Ingen vannvekt i pakkelisten – passer når det er bekker '
+                          'og vann langs ruten. Ta med flaske og eventuelt filter.'
+                    : 'Vannet legges inn som forbruksvare i pakkelisten. '
+                          'Sett 0 hvis du fyller underveis.',
+                style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Mat: ${fmtWeight(plan.totalFoodWeightGrams)} for '
+                '${fmtCount(plan.days, 'dag', 'dager')} '
+                '(${fmtCount(plan.meals.length, 'måltid', 'måltider')})',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MealsScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.restaurant_outlined, size: 18),
+                    label: const Text('Åpne måltidsplanen'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      plan.waterLitersPerPersonDay = liters;
+                      trip.deletedGearIds.remove('water-total');
+                      trip.deletedGearIds.remove('food-total');
+                      await state.updateMealPlan(trip);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Oppdater pakkelisten'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 class PackingScreen extends StatefulWidget {
   const PackingScreen({super.key});
@@ -65,14 +222,14 @@ class _PackingScreenState extends State<PackingScreen> {
         actions: [
           if (trip != null)
             IconButton(
-              icon: const Icon(Icons.auto_awesome_outlined),
-              tooltip: 'Pakkeforhåndsvalg',
-              onPressed: () => _presetsSheet(context, trip),
+              icon: const Icon(Icons.tune),
+              tooltip: 'Turvalg – aktivitet, overnatting, dato, deltakere',
+              onPressed: () => showTripQuickSetup(context, trip),
             ),
           if (trip != null)
             IconButton(
               icon: const Icon(Icons.inventory_2_outlined),
-              tooltip: 'Maler',
+              tooltip: 'Mine pakkelister (maler)',
               onPressed: () => _templatesSheet(context, trip),
             ),
           if (trip != null)
@@ -84,6 +241,10 @@ class _PackingScreenState extends State<PackingScreen> {
                   child: Text('Generer liste på nytt'),
                 ),
                 PopupMenuItem(value: 'optimize', child: Text('Optimaliser')),
+                PopupMenuItem(
+                  value: 'removed',
+                  child: Text('Fjernede gjenstander…'),
+                ),
               ],
             ),
         ],
@@ -132,6 +293,8 @@ class _PackingScreenState extends State<PackingScreen> {
             'Pakket-status og egne gjenstander beholdes.',
       );
       if (ok) await state.generatePackingList(trip);
+    } else if (v == 'removed') {
+      await showRemovedItemsSheet(context, trip);
     } else if (v == 'optimize') {
       final engine = PackingEngine();
       final notes = engine.describeOptimization(trip);
@@ -185,55 +348,6 @@ class _PackingScreenState extends State<PackingScreen> {
       isScrollControlled: true,
       builder: (ctx) => _TemplatesSheet(trip: trip),
     );
-  }
-
-  /// Lets the user pick a trip preset. The preset only sets activity,
-  /// carry, accommodation and season — the rule matrix then decides
-  /// every item, so the result can be tweaked afterwards.
-  Future<void> _presetsSheet(BuildContext context, Trip trip) async {
-    final state = context.read<AppState>();
-    final preset = await showModalBottomSheet<PackingPreset>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(
-                'Velg et utgangspunkt – aktivitet, bæring, overnatting '
-                'og sesong settes om. Reglene for utstyr kan fortsatt '
-                'justeres i etterkant.',
-              ),
-            ),
-            for (final p in packingPresets)
-              ListTile(
-                leading: const Icon(Icons.auto_awesome_outlined),
-                title: Text(p.name),
-                subtitle: Text(
-                  '${p.description}\n${p.activity.label} · ${p.carry.label} · '
-                  '${p.accommodation.label} · ${p.season.label}',
-                ),
-                isThreeLine: true,
-                onTap: () => Navigator.pop(ctx, p),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (preset == null || !mounted) return;
-    if (trip.packingList.isNotEmpty) {
-      final ok = await _confirm(
-        this.context,
-        'Bruk «${preset.name}»?',
-        'Aktivitet, bæring, overnatting og sesong endres, og pakkelisten '
-            'genereres på nytt. Pakket-status, egne gjenstander og justerte '
-            'vekter beholdes.',
-      );
-      if (!ok || !mounted) return;
-    }
-    await state.applyPackingPreset(trip, preset);
   }
 
   void _addItem(BuildContext context, Trip trip) {
@@ -902,32 +1016,7 @@ class _ItemRow extends StatelessWidget {
         }
         return true;
       },
-      onDismissed: (_) async {
-        final idx = trip.packingList.indexWhere((i) => i.id == item.id);
-        trip.packingList.removeWhere((i) => i.id == item.id);
-        // Tombstone generated suggestions so they don't reappear on
-        // the next regeneration — user-added items are simply gone.
-        if (!item.userAdded) trip.deletedGearIds.add(item.id);
-        await state.saveTrip(trip);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('«${item.name}» fjernet'),
-              action: SnackBarAction(
-                label: 'Angre',
-                onPressed: () {
-                  trip.deletedGearIds.remove(item.id);
-                  trip.packingList.insert(
-                    idx.clamp(0, trip.packingList.length),
-                    item,
-                  );
-                  state.saveTrip(trip);
-                },
-              ),
-            ),
-          );
-        }
-      },
+      onDismissed: (_) => _remove(context),
       background: Container(
         color: NkColors.dangerRed,
         alignment: Alignment.centerRight,
@@ -1062,6 +1151,35 @@ class _ItemRow extends StatelessWidget {
     );
   }
 
+  /// Removes the item. Generated suggestions are tombstoned so they
+  /// don't reappear on regeneration (see «Fjernede gjenstander»);
+  /// user-added items are simply gone. Undo via the snackbar.
+  Future<void> _remove(BuildContext context) async {
+    final state = context.read<AppState>();
+    final idx = trip.packingList.indexWhere((i) => i.id == item.id);
+    trip.packingList.removeWhere((i) => i.id == item.id);
+    if (!item.userAdded) trip.deletedGearIds.add(item.id);
+    await state.saveTrip(trip);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('«${item.name}» fjernet'),
+          action: SnackBarAction(
+            label: 'Angre',
+            onPressed: () {
+              trip.deletedGearIds.remove(item.id);
+              trip.packingList.insert(
+                idx.clamp(0, trip.packingList.length),
+                item,
+              );
+              state.saveTrip(trip);
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   void _editItem(BuildContext context) {
     final name = TextEditingController(text: item.name);
     final qty = TextEditingController(text: item.quantity.toStringAsFixed(0));
@@ -1140,6 +1258,15 @@ class _ItemRow extends StatelessWidget {
             ),
           ),
           actions: [
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: NkColors.dangerRed),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _remove(context);
+              },
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Fjern fra listen'),
+            ),
             if (!item.userAdded &&
                 (item.nameEdited ||
                     item.quantityEdited ||
@@ -1396,6 +1523,20 @@ class _PlanningBasis extends StatelessWidget {
                       style: const TextStyle(fontSize: 12),
                     ),
                   ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  onPressed: context.watch<AppState>().busy
+                      ? null
+                      : () => showFoodWaterSheet(context, trip),
+                  icon: const Icon(Icons.restaurant_outlined, size: 16),
+                  label: const Text(
+                    'Mat og vann',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 4),
