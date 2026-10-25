@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:xml/xml.dart';
@@ -146,8 +148,15 @@ class TurrutebaseService {
         'Turrutebasen svarte med feil (HTTP ${res.statusCode}).',
       );
     }
-    return parse(res.body);
+    return parse(bodyText(res));
   }
+
+  /// Geonorge answers with `Content-Type: text/xml; subtype=gml/3.2.1;
+  /// charset=UTF-8`. The unquoted slash in `subtype` makes
+  /// `Response.body` throw a FormatException while parsing the media
+  /// type, so decode the bytes ourselves — the payload is always UTF-8.
+  static String bodyText(http.Response res) =>
+      utf8.decode(res.bodyBytes, allowMalformed: true);
 
   /// GML → [TrailRoute]s. One feature per `wfs:member` (WFS 2.x) or
   /// `gml:featureMember` (WFS 1.x); geometry is `gml:posList` inside
