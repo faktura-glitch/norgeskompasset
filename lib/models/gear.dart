@@ -72,6 +72,10 @@ class TripConditions {
   bool get cabin => accommodation == AccommodationType.cabin;
   bool get multiDay => days > 1;
 
+  /// Snow or a known forecast at/below freezing — real winter camping.
+  /// Shoulder-season cold alone (spring/autumn) is not enough.
+  bool get winterCamp => snow || (minTemp != null && minTemp! <= 0);
+
   bool has(WeatherFlag f) => switch (f) {
     WeatherFlag.rain => rain,
     WeatherFlag.strongWind => strongWind,
@@ -103,6 +107,9 @@ class GearItem {
 
   /// Multiply quantity by trip length (e.g. dog food per day).
   final bool qtyPerDay;
+
+  /// Overrides the computed quantity (e.g. one tent per two people).
+  final double Function(TripConditions)? qtyFn;
   final bool worn;
   final bool consumable;
   final String? reason;
@@ -147,6 +154,7 @@ class GearItem {
     this.qty = 1,
     this.qtyOvernight,
     this.qtyPerDay = false,
+    this.qtyFn,
     this.worn = false,
     this.consumable = false,
     this.reason,
@@ -239,6 +247,7 @@ class GearItem {
     if (c.overnight && qtyOvernight != null) q = qtyOvernight!;
     if (perPerson) q *= c.people;
     if (qtyPerDay) q *= c.days;
+    if (qtyFn != null) q = qtyFn!(c);
     return PackingItem(
       id: id,
       name: name,

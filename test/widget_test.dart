@@ -404,8 +404,9 @@ void main() {
       expect(find('Sovepose').quantity, 3);
       expect(find('Hodelykt').quantity, 3);
       expect(find('Nødproviant').quantity, 3);
-      // Shared gear stays at 1 regardless of group size.
-      expect(find('Telt').quantity, 1);
+      // Shelter is shared: one tent per two people.
+      expect(find('Telt').quantity, 2);
+      // Other shared gear stays at 1 regardless of group size.
       expect(find('Førstehjelp').quantity, 1);
       expect(find('Kompass').quantity, 1);
     });

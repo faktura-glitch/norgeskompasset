@@ -118,6 +118,16 @@ class PackingEngine {
     if (ctx.lightPacker) {
       items.removeWhere((i) => i.priority == PackingPriority.optional);
     }
+    // Unconfirmed avalanche terrain: the trio stays on the list but as
+    // recommended, so prepared-trail ski days aren't flagged as unsafe.
+    if (ctx.avalanche == AvalancheRisk.uncertain) {
+      for (final i in items) {
+        if (const {'beacon', 'shovel', 'probe'}.contains(i.id) &&
+            i.priority == PackingPriority.required) {
+          i.priority = PackingPriority.recommended;
+        }
+      }
+    }
 
     // ── Learn from past reviews ─────────────────────────────
     _applyExperience(items, pastTrips);

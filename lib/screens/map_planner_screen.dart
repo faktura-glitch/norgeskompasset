@@ -1997,11 +1997,24 @@ class _TripConfigState extends State<_TripConfig> {
       helpText: start ? 'Startdato' : 'Sluttdato',
     );
     if (picked == null || !mounted) return;
+    var seasonChanged = false;
     setState(() {
       if (start) {
         trip.startDate = picked;
         if (trip.endDate == null || trip.endDate!.isBefore(picked)) {
           trip.endDate = picked;
+        }
+        // The packing rules follow the season, so keep it in step
+        // with the chosen start date.
+        final season = TurrutebaseService.seasonForDate(picked);
+        if (season != trip.season) {
+          seasonChanged = true;
+          trip.season = season;
+          if (season == TripSeason.winter &&
+              trip.activity == TripActivity.paddle) {
+            trip.activity = TripActivity.foot;
+            trip.carry = CarryMode.backpack;
+          }
         }
       } else {
         trip.endDate = picked.isBefore(trip.startDate ?? picked)
@@ -2009,7 +2022,45 @@ class _TripConfigState extends State<_TripConfig> {
             : picked;
       }
     });
+    if (seasonChanged) {
+      nkToast(
+        context,
+        'Sesong satt til ${trip.season.label} ut fra startdatoen – '
+        'pakkelisten er oppdatert.',
+      );
+    }
     await state.reanalyze(trip, datesChanged: true);
+  }
+
+  /// Asks once whether a ski trip crosses avalanche terrain, so the
+  /// packing list can mark the avalanche trio correctly.
+  Future<void> _askAvalancheTerrain(Trip trip) async {
+    final answer = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Går turen i skredterreng?'),
+        content: const Text(
+          'Bratte fjellsider over ca. 30° eller under slike heng er '
+          'skredterreng. Svaret avgjør om skredsøker, spade og søkestang '
+          'blir påkrevd i pakkelisten. Sjekk alltid varsom.no.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Vet ikke'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Nei, løyper/flatt'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ja, mulig skred'),
+          ),
+        ],
+      ),
+    );
+    if (answer != null) trip.avalancheTerrain = answer;
   }
 
   Future<void> _pickExpectedReturn() async {
@@ -2017,8 +2068,7 @@ class _TripConfigState extends State<_TripConfig> {
     final state = context.read<AppState>();
     final day = await showDatePicker(
       context: context,
-      initialDate:
-          trip.expectedReturn ?? trip.endDate ?? DateTime.now(),
+      initialDate: trip.expectedReturn ?? trip.endDate ?? DateTime.now(),
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 540)),
       helpText: 'Hjemme senest – dato',
@@ -2128,6 +2178,9 @@ class _TripConfigState extends State<_TripConfig> {
                           }
                         case TripActivity.paddle:
                           trip.carry = CarryMode.canoe;
+                          if (trip.season == TripSeason.winter) {
+                            trip.season = TripSeason.summer;
+                          }
                         // Paddling requires open water — can't stay
                         // on the winter season.
 
@@ -2138,6 +2191,10 @@ class _TripConfigState extends State<_TripConfig> {
                       }
                     });
                     if (v == TripActivity.ski) widget.onSkiSelected?.call();
+                    if (v == TripActivity.ski &&
+                        trip.avalancheTerrain == null) {
+                      await _askAvalancheTerrain(trip);
+                    }
                     widget.onActivityChanged?.call();
                     await state.updateTripSetup(trip);
                   },

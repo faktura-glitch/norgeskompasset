@@ -392,8 +392,18 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     1600,
     priority: PackingPriority.required,
     carryModes: {CarryMode.backpack},
-    extra: (c) => c.multiDay,
+    extra: (c) => c.multiDay && c.activity != TripActivity.bike,
     reason: 'Romslig sekk med bæresystem tilpasset flerdagstur',
+  ),
+  GearItem(
+    'bikebags',
+    'Sykkelvesker/bikepacking-vesker',
+    PackingCategory.additional,
+    1200,
+    priority: PackingPriority.required,
+    activities: {TripActivity.bike},
+    extra: (c) => c.multiDay,
+    reason: 'Flerdagstur på sykkel – last på sykkelen, ikke på ryggen',
   ),
   GearItem(
     'pulk',
@@ -747,9 +757,11 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     1800,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
-    extra: (c) => !c.cold && !c.lightPacker,
+    extra: (c) => !c.winterCamp && (!c.lightPacker || c.cold),
+    qtyFn: _tentsFor,
     reasonFn: (c) =>
-        'Overnatting i telt${c.people > 2 ? ' – sjekk at kapasiteten dekker ${c.people} personer' : ''}'
+        'Overnatting i telt${c.cold ? ' – velg et robust telt for kalde netter' : ''}'
+        '${c.people > 2 ? ' – ${_tentsFor(c).round()} telt à 2 personer, juster etter kapasitet' : ''}'
         '${!c.ownsTent ? ' – må lånes eller kjøpes' : ''}',
   ),
   GearItem(
@@ -760,6 +772,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
     extra: (c) => !c.cold && c.lightPacker,
+    qtyFn: _tentsFor,
     reason: 'Ultralett-valg fra profilen',
   ),
   GearItem(
@@ -769,7 +782,8 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     3400,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
-    extra: (c) => c.snow || (c.minTemp != null && c.minTemp! <= 0),
+    extra: (c) => c.winterCamp,
+    qtyFn: _tentsFor,
     reason: 'Vinterleir – telt som tåler vind og snølast',
   ),
   GearItem(
@@ -791,8 +805,20 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
-    extra: (c) => c.cold || (c.minTemp != null && c.minTemp! <= 5),
+    extra: (c) => c.winterCamp,
     reason: 'Velg pose med komfortgrense godt under det varslede minimumet',
+  ),
+  GearItem(
+    'bag-shoulder',
+    'Sovepose (komfort ca. -5 °C)',
+    PackingCategory.shelterSleeping,
+    1100,
+    perPerson: true,
+    priority: PackingPriority.required,
+    accommodation: {AccommodationType.tent},
+    extra: (c) =>
+        !c.winterCamp && (c.cold || (c.minTemp != null && c.minTemp! <= 5)),
+    reason: 'Kalde netter vår/høst – vinterpose er unødvendig tung',
   ),
   GearItem(
     'pad-summer',
@@ -802,7 +828,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
-    extra: (c) => !c.cold,
+    extra: (c) => !c.winterCamp,
     reason: 'Isolasjon mot bakken',
   ),
   GearItem(
@@ -818,6 +844,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
   ),
   GearItem(
     'pad-winter',
+    extra: (c) => c.winterCamp,
     'Vinterunderlag oppblåsbart (høy R-verdi)',
     PackingCategory.shelterSleeping,
     650,
@@ -893,12 +920,13 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     80,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
-    extra: (c) => !c.cold,
+    extra: (c) => !c.winterCamp,
     reasonFn: (c) =>
         'Matlaging ved telttur${!c.ownsStove ? ' – må lånes eller kjøpes' : ''}',
   ),
   GearItem(
     'stove-winter',
+    extra: (c) => c.winterCamp,
     'Multifuelbrenner (bensin)',
     PackingCategory.foodKitchen,
     450,
@@ -1267,3 +1295,7 @@ final List<PackingPreset> packingPresets = List.unmodifiable([
     season: TripSeason.summer,
   ),
 ]);
+
+/// One shelter per two people (minimum one).
+double _tentsFor(TripConditions c) =>
+    (c.people / 2).ceilToDouble().clamp(1, 10).toDouble();
