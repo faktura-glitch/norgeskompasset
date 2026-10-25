@@ -13,7 +13,6 @@ import '../core/format.dart';
 import '../core/geo.dart';
 import '../models/alert.dart';
 import '../models/catalog_trip.dart';
-import '../models/local_tour.dart';
 import '../models/packing.dart';
 import '../models/food_menu.dart';
 import '../models/profile.dart';
@@ -527,38 +526,6 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (id == null) return false;
     catalogLoaded = false; // refetch so the new entry shows up
     return true;
-  }
-
-  Future<Trip> startFromLocalTour(
-    LocalTour tour, {
-    required DateTime startDate,
-    required int days,
-    required int participants,
-    required AccommodationType accommodation,
-    required bool acknowledgedUnverified,
-    TripSeason? season,
-  }) async {
-    if (!acknowledgedUnverified) {
-      throw ArgumentError('Bekreft at planmalen ikke er en kontrollert rute.');
-    }
-    final trip = tour.createDraft(
-      tripId: const Uuid().v4(),
-      startDate: startDate,
-      days: days,
-      participants: participants,
-      accommodation: accommodation,
-    );
-    trip.season = season ?? tour.season;
-    _recomputeStages(trip);
-    trip.packingList = packingEngine.generate(trip, profile: profile);
-    trip.mealPlan = MealPlanner.generate(trip, profile: profile);
-    _syncFoodToPacking(trip);
-    recommendationEngine.refresh(trip, profile: profile);
-    await repo.saveTrip(trip);
-    trips.insert(0, trip);
-    currentTripId = trip.id;
-    notifyListeners();
-    return trip;
   }
 
   /// Creates a fresh local trip from a catalog entry — the route is

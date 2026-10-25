@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:norgeskompasset/core/geo.dart';
 import 'package:norgeskompasset/models/route_models.dart';
 import 'package:norgeskompasset/models/trip.dart';
 import 'package:norgeskompasset/models/catalog_trip.dart';
@@ -9,13 +8,17 @@ import 'package:norgeskompasset/models/packing.dart';
 import 'package:norgeskompasset/models/profile.dart';
 import 'package:norgeskompasset/models/weather.dart';
 import 'package:norgeskompasset/screens/find_tours_screen.dart';
-import 'package:norgeskompasset/screens/trips_screen.dart';
-import 'package:norgeskompasset/services/local_tour_catalog.dart';
 import 'package:norgeskompasset/services/meal_planner.dart';
 import 'package:norgeskompasset/services/packing_engine.dart';
 import 'package:norgeskompasset/services/trip_repository.dart';
 import 'package:norgeskompasset/state/app_state.dart';
-import 'package:norgeskompasset/widgets/local_tour_suggestions.dart';
+
+/// A small two-point route for shared-catalog entries in tests.
+HikingRoute _route() => HikingRoute(
+  points: [RoutePoint(59.97, 10.73), RoutePoint(60.0, 10.75)],
+  source: RouteSource.estimated,
+  distanceMeters: 4000,
+);
 
 class _MemoryRepository extends TripRepository {
   final saved = <Trip>[];
@@ -63,7 +66,7 @@ void main() {
       id: 'shared',
       ownerUid: 'owner',
       name: 'Delt tur',
-      route: localTours.first.previewRoute(),
+      route: _route(),
       activity: TripActivity.ski,
       durationDays: 3,
     );
@@ -100,7 +103,7 @@ void main() {
         id: 'paddle',
         ownerUid: 'owner',
         name: 'Padletur',
-        route: localTours.first.previewRoute(),
+        route: _route(),
         activity: TripActivity.foot,
         durationDays: 1,
       );
@@ -256,346 +259,6 @@ void main() {
       expect(trip.weather, isEmpty);
       expect(trip.mealPlan!.days, 3);
       expect(trip.mealPlan!.meals.any((meal) => meal.day == 3), isTrue);
-    },
-  );
-
-  testWidgets(
-    'new trip remains available when the list filter has no matches',
-    (tester) async {
-      final state = AppState(_MemoryRepository())
-        ..trips = [Trip(id: 'one', name: 'Nordmarka')];
-      addTearDown(state.dispose);
-      await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: state,
-          child: const MaterialApp(home: TripsScreen()),
-        ),
-      );
-      await tester.enterText(find.byType(TextField).first, 'Ingen treff');
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Ingen turer matcher søket eller filteret.'),
-        findsOneWidget,
-      );
-      expect(find.text('Ny tur'), findsOneWidget);
-      await tester.tap(find.text('Nullstill søk og filter'));
-      await tester.pumpAndSettle();
-      expect(find.text('Nordmarka'), findsOneWidget);
-    },
-  );
-
-  testWidgets('default suggestions show only three Nordmarka day ideas', (
-    tester,
-  ) async {
-    final state = AppState(_MemoryRepository());
-    addTearDown(state.dispose);
-    await tester.pumpWidget(
-      ChangeNotifierProvider.value(
-        value: state,
-        child: MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: LocalTourSuggestions(
-                query: '',
-                onRequestLocation: () {},
-                onPreview: (_) {},
-                onImported: (_) => fail('Browsing must not import'),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    expect(find.text('Sognsvann – Ullevålseter'), findsOneWidget);
-    expect(find.text('Frognerseteren – Ullevålseter'), findsOneWidget);
-    expect(find.text('Vettakollen utsiktspunkt'), findsOneWidget);
-    expect(find.text('Besseggen'), findsNothing);
-    expect(find.text('Femunden nord til sør'), findsNothing);
-    expect(find.byType(FilterChip), findsNothing);
-    expect(state.trips, isEmpty);
-    expect(tester.takeException(), isNull);
-  });
-
-  test(
-    'local templates have unique IDs, coordinates and explicit limitations',
-    () {
-      expect(localTours.length, 13);
-      expect(localTours.map((tour) => tour.id).toSet().length, 13);
-      for (final tour in localTours) {
-        expect(tour.stops.length, greaterThanOrEqualTo(2));
-        expect(tour.warning, isNotEmpty);
-        expect(tour.months, isNotEmpty);
-        final route = tour.previewRoute();
-        expect(route.source, RouteSource.estimated);
-        expect(route.distanceMeters, routeDistanceMeters(route.points));
-        expect(route.points.every((point) => point.elevation == null), isTrue);
-        expect(route.highestPoint, isNull);
-        expect(route.totalAscent, 0);
-        expect(
-          route.polylineSegments().every((segment) => segment.straight),
-          isTrue,
-        );
-        for (final stop in tour.stops) {
-          expect(stop.lat, inInclusiveRange(58, 72));
-          expect(stop.lon, inInclusiveRange(4, 32));
-        }
-      }
-    },
-  );
-
-  test('search works by name, region, municipality and activity', () {
-    expect(
-      localTours.where((tour) => tour.matchesQuery(' jotunheimen ')).length,
-      5,
-    );
-    expect(
-      localTours.where((tour) => tour.matchesQuery('nordmarka')).length,
-      5,
-    );
-    expect(
-      localTours.where((tour) => tour.matchesQuery('GRAN')).single.id,
-      'local-fjorda-kano',
-    );
-    expect(localTours.where((tour) => tour.matchesQuery('ski')).length, 2);
-    expect(
-      localTours.where((tour) => tour.matchesQuery('oslo')).length,
-      greaterThanOrEqualTo(4),
-    );
-    expect(localTours.where((tour) => tour.matchesQuery('ukjent')), isEmpty);
-  });
-
-  test(
-    'return route is explicit and previews never mutate local definitions',
-    () {
-      final tour = localTours.first;
-      final first = tour.previewRoute();
-      expect(first.points.length, 5);
-      expect(first.points.first.latLng, first.points.last.latLng);
-      first.waypoints.first.lat = 0;
-      first.points.first.elevation = 500;
-      final second = tour.previewRoute();
-      expect(second.waypoints.first.lat, tour.stops.first.lat);
-      expect(second.points.first.elevation, isNull);
-      expect(tour.stops.length, 3);
-    },
-  );
-
-  test('day count survives date boundaries and data roundtrip without promoting claimed stats', () {
-    final tour = localTours.first;
-    final trip = tour.createDraft(
-      tripId: 'draft',
-      startDate: DateTime(2026, 3, 28),
-      days: 4,
-      participants: 2,
-      accommodation: AccommodationType.tent,
-    );
-    final copy = Trip.decode(trip.encode());
-    expect(copy.hikingDays, 4);
-    expect(copy.participants, 2);
-    expect(copy.status, TripStatus.draft);
-    expect(copy.localTourId, tour.id);
-    expect(Trip.fromJson({'id': 'legacy'}).localTourId, isNull);
-    expect(copy.route!.source, RouteSource.estimated);
-    expect(copy.notes, contains(tour.provenance));
-    expect(copy.notes, contains('650 m'));
-    expect(copy.route!.totalAscent, 0);
-    expect(
-      () => tour.createDraft(
-        tripId: 'bad',
-        startDate: DateTime(2026),
-        days: 0,
-        participants: 1,
-        accommodation: AccommodationType.tent,
-      ),
-      throwsArgumentError,
-    );
-  });
-
-  test('confirmed imports use ski+pulk and canoe rules, create meals and persist only selected trips', () async {
-    final repo = _MemoryRepository();
-    final state = AppState(repo);
-    addTearDown(state.dispose);
-    for (final id in ['local-femunden-pulk', 'local-fjorda-kano']) {
-      final tour = localTours.firstWhere((tour) => tour.id == id);
-      final trip = await state.startFromLocalTour(
-        tour,
-        startDate: DateTime(2026, 7, 1),
-        days: tour.durationDays,
-        participants: 2,
-        accommodation: tour.accommodation,
-        acknowledgedUnverified: true,
-      );
-      expect(trip.activity, tour.activity);
-      expect(trip.carry, tour.carry);
-      expect(trip.season, tour.season);
-      expect(trip.hikingDays, tour.durationDays);
-      expect(trip.packingList, isNotEmpty);
-      expect(trip.mealPlan!.days, tour.durationDays);
-      expect(trip.route!.source, RouteSource.estimated);
-      expect(trip.weather, isEmpty);
-      expect(trip.status, TripStatus.draft);
-      expect(
-        trip.recommendations.any(
-          (r) => r.title == 'Turmalen er ikke kontrollert',
-        ),
-        isTrue,
-      );
-      final gear = trip.packingList
-          .map((item) => item.name.toLowerCase())
-          .join(' ');
-      if (tour.carry == CarryMode.pulk) expect(gear, contains('pulk'));
-      if (tour.activity == TripActivity.paddle) {
-        expect(gear, contains('flytevest'));
-        expect(gear, isNot(contains('skismøring')));
-      }
-    }
-    expect(repo.saved.length, 2);
-    expect(state.trips.length, 2);
-  });
-
-  test(
-    'unacknowledged or failed imports do not change the selected trip',
-    () async {
-      final repo = _MemoryRepository();
-      final state = AppState(repo)
-        ..trips = [Trip(id: 'existing')]
-        ..currentTripId = 'existing';
-      addTearDown(state.dispose);
-      Future<Trip> import(bool acknowledge) => state.startFromLocalTour(
-        localTours.first,
-        startDate: DateTime(2026, 7, 1),
-        days: 1,
-        participants: 1,
-        accommodation: AccommodationType.dayHike,
-        acknowledgedUnverified: acknowledge,
-      );
-      await expectLater(import(false), throwsArgumentError);
-      expect(repo.saved, isEmpty);
-      repo.fail = true;
-      await expectLater(import(true), throwsStateError);
-      expect(state.trips.length, 1);
-      expect(state.currentTripId, 'existing');
-    },
-  );
-
-  test(
-    'unverified origin warning survives regeneration and notes changes',
-    () async {
-      final state = AppState(_MemoryRepository());
-      addTearDown(state.dispose);
-      final trip = await state.startFromLocalTour(
-        localTours.first,
-        startDate: DateTime(2026, 7, 1),
-        days: 1,
-        participants: 1,
-        accommodation: AccommodationType.dayHike,
-        acknowledgedUnverified: true,
-        season: TripSeason.winter,
-      );
-      trip.notes = '';
-      await state.generatePackingList(trip);
-      expect(trip.season, TripSeason.winter);
-      expect(
-        trip.recommendations.any(
-          (r) => r.title == 'Turmalen er ikke kontrollert',
-        ),
-        isTrue,
-      );
-      expect(Trip.decode(trip.encode()).localTourId, localTours.first.id);
-    },
-  );
-
-  testWidgets(
-    'date and acknowledgement are required before one confirmed import',
-    (tester) async {
-      final repo = _MemoryRepository();
-      final state = AppState(repo);
-      Trip? imported;
-      await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: state,
-          child: MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: LocalTourSuggestions(
-                  query: 'Besseggen',
-                  simpleOnly: false,
-                  onRequestLocation: () {},
-                  onPreview: (_) {},
-                  onImported: (trip) => imported = trip,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Besseggen'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Velg startdato'));
-      await tester.tap(find.text('Velg startdato'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-      final confirm = find.widgetWithText(
-        FilledButton,
-        'Opprett utkast og foreløpig pakkeliste',
-      );
-      expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
-      await tester.ensureVisible(find.byType(CheckboxListTile));
-      await tester.tap(find.byType(CheckboxListTile));
-      await tester.pumpAndSettle();
-      await tester.tap(confirm);
-      await tester.pumpAndSettle();
-      expect(imported?.name, 'Besseggen');
-      expect(repo.saved.length, 1);
-      expect(state.trips.length, 1);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'cards preview without creating trips and cancellation leaves state unchanged',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final repo = _MemoryRepository();
-      final state = AppState(repo);
-      HikingRoute? preview;
-      await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: state,
-          child: MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: LocalTourSuggestions(
-                  query: '',
-                  simpleOnly: false,
-                  onRequestLocation: () {},
-                  onPreview: (route) => preview = route,
-                  onImported: (_) => fail('Preview must not import'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      expect(find.text('Galdhøpiggen fra Juvasshytta'), findsOneWidget);
-      await tester.tap(find.text('Galdhøpiggen fra Juvasshytta'));
-      await tester.pumpAndSettle();
-      expect(preview!.source, RouteSource.estimated);
-      expect(find.text(localTours.first.provenance), findsOneWidget);
-      final button = tester.widget<FilledButton>(
-        find.widgetWithText(
-          FilledButton,
-          'Opprett utkast og foreløpig pakkeliste',
-        ),
-      );
-      expect(button.onPressed, isNull);
-      await tester.tap(find.text('Avbryt'));
-      await tester.pumpAndSettle();
-      expect(state.trips, isEmpty);
-      expect(repo.saved, isEmpty);
-      expect(tester.takeException(), isNull);
     },
   );
 }

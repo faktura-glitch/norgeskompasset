@@ -6,7 +6,6 @@ import '../models/route_models.dart';
 import '../models/stage.dart';
 import '../models/trip.dart';
 import 'trip_analysis.dart';
-import 'local_tour_catalog.dart';
 
 /// Combines route, elevation, weather and packing state into
 /// transparent, prioritized recommendations. Never claims a trip is
@@ -18,10 +17,9 @@ class RecommendationEngine {
   List<Recommendation> build(Trip trip, {UserProfile? profile}) {
     final out = <Recommendation>[];
     final now = DateTime.now();
+    // Trips created from the retired built-in templates keep their id so
+    // the warning survives for already saved trips.
     if (trip.localTourId != null) {
-      final template = localTours
-          .where((tour) => tour.id == trip.localTourId)
-          .firstOrNull;
       out.add(
         Recommendation(
           id: _id(),
@@ -29,9 +27,7 @@ class RecommendationEngine {
           title: 'Turmalen er ikke kontrollert',
           observation:
               'Turen er opprettet fra en brukerlevert planmal (${trip.localTourId}).',
-          why:
-              template?.warning ??
-              'Opprinnelige rutepunkter og nøkkeltall er ikke verifisert.',
+          why: 'Opprinnelige rutepunkter og nøkkeltall er ikke verifisert.',
           action:
               'Kontroller faktisk trasé, høydeprofil, lokale forhold og nødvendige ferdigheter. '
               'Kartskissen og den foreløpige pakkelisten er ikke et navigasjonsgrunnlag eller en sikkerhetsvurdering.',
