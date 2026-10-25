@@ -545,6 +545,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       ..addAll(anchors);
     _anchorsFromTripId = trip.id;
     final oldRoute = trip.route;
+    final firstRoute = oldRoute?.hasRoute != true;
     await state.buildRoute(
       trip,
       anchors.map((w) => w.latLng).toList(),
@@ -582,6 +583,29 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     if (mounted && state.lastError != null) nkToast(context, state.lastError!);
     await state.reanalyze(trip);
     if (mounted) setState(() => _routeDirty = false);
+    // A brand-new route: ask the three questions that decide packing.
+    if (firstRoute && mounted) await _showQuickSetup(trip);
+  }
+
+  Future<void> _showQuickSetup(Trip trip) async {
+    final state = context.read<AppState>();
+    final activityBefore = trip.activity;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) =>
+          _QuickSetupSheet(trip: trip, dogDefault: state.profile.withDog),
+    );
+    if (ok != true || !mounted) return;
+    // The routing profile follows the activity.
+    setState(() {
+      if (trip.activity != activityBefore && trip.route?.hasRoute == true) {
+        _routeDirty = true;
+      }
+    });
+    await state.updateParticipants(trip);
+    if (mounted) nkToast(context, 'Pakkelisten er oppdatert.');
   }
 
   Future<void> _clearRoute() async {
@@ -1396,8 +1420,27 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           trip.name.isEmpty ? 'Tur uten navn' : trip.name,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-        Text(
-          '${trip.activity.label} · ${trip.season.label} · ${fmtCount(trip.hikingDays, 'dag', 'dager')}',
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final label in [
+              trip.activity.label,
+              trip.accommodation.label,
+              trip.season.label,
+              fmtCount(trip.hikingDays, 'dag', 'dager'),
+              fmtCount(trip.participants, 'person', 'personer'),
+              if (trip.withDog ?? context.read<AppState>().profile.withDog)
+                'Hund',
+            ])
+              ActionChip(
+                label: Text(label),
+                tooltip: 'Endre turtype',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showQuickSetup(trip),
+              ),
+          ],
         ),
         Row(
           children: [
@@ -2178,28 +2221,7 @@ class _TripConfigState extends State<_TripConfig> {
                   onChanged: (v) async {
                     if (v == null) return;
                     setState(() {
-                      trip.activity = v;
-                      switch (v) {
-                        case TripActivity.ski:
-                          if (trip.season == TripSeason.summer) {
-                            trip.season = TripSeason.winter;
-                          }
-                          if (trip.carry == CarryMode.canoe) {
-                            trip.carry = CarryMode.backpack;
-                          }
-                        case TripActivity.paddle:
-                          trip.carry = CarryMode.canoe;
-                          if (trip.season == TripSeason.winter) {
-                            trip.season = TripSeason.summer;
-                          }
-                        // Paddling requires open water — can't stay
-                        // on the winter season.
-
-                        default:
-                          if (trip.carry == CarryMode.canoe) {
-                            trip.carry = CarryMode.backpack;
-                          }
-                      }
+                      _applyActivity(trip, v);
                     });
                     if (v == TripActivity.ski) widget.onSkiSelected?.call();
                     if (v == TripActivity.ski &&
@@ -2442,6 +2464,167 @@ class _TripConfigState extends State<_TripConfig> {
             onEditingComplete: () => state.saveTrip(trip),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Applies [v] and keeps season and carry mode consistent with it.
+void _applyActivity(Trip trip, TripActivity v) {
+  trip.activity = v;
+  switch (v) {
+    case TripActivity.ski:
+      if (trip.season == TripSeason.summer) trip.season = TripSeason.winter;
+      if (trip.carry == CarryMode.canoe) trip.carry = CarryMode.backpack;
+    case TripActivity.paddle:
+      // Paddling requires open water.
+      trip.carry = CarryMode.canoe;
+      if (trip.season == TripSeason.winter) trip.season = TripSeason.summer;
+    default:
+      if (trip.carry == CarryMode.canoe) trip.carry = CarryMode.backpack;
+  }
+}
+
+/// The three quick questions that decide the packing list.
+class _QuickSetupSheet extends StatefulWidget {
+  final Trip trip;
+  final bool dogDefault;
+  const _QuickSetupSheet({required this.trip, required this.dogDefault});
+
+  @override
+  State<_QuickSetupSheet> createState() => _QuickSetupSheetState();
+}
+
+class _QuickSetupSheetState extends State<_QuickSetupSheet> {
+  late TripActivity _activity = widget.trip.activity;
+  late AccommodationType _accommodation = widget.trip.accommodation;
+  late int _people = widget.trip.participants;
+  late bool _dog = widget.trip.withDog ?? widget.dogDefault;
+  late bool? _terrain = widget.trip.avalancheTerrain;
+
+  Widget _question(String text) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 6),
+    child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+  );
+
+  Widget _choices<T>(
+    List<(T, String)> options,
+    T selected,
+    ValueChanged<T> onSelect,
+  ) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final (value, label) in options)
+        ChoiceChip(
+          label: Text(label),
+          selected: value == selected,
+          onSelected: (_) => setState(() => onSelect(value)),
+        ),
+    ],
+  );
+
+  void _apply() {
+    final t = widget.trip;
+    _applyActivity(t, _activity);
+    if (_activity == TripActivity.ski) t.avalancheTerrain = _terrain;
+    t.accommodation = _accommodation;
+    t.participants = _people;
+    // Only pin the dog choice when it differs from the profile.
+    if (t.withDog != null || _dog != widget.dogDefault) t.withDog = _dog;
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Hva slags tur er det?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Svarene styrer pakkelisten. Du kan endre dem senere ved '
+              'å trykke på merkene under turnavnet.',
+              style: TextStyle(color: NkColors.textSecondary),
+            ),
+            _question('Hvordan?'),
+            _choices(
+              [for (final a in TripActivity.values) (a, a.label)],
+              _activity,
+              (v) => _activity = v,
+            ),
+            if (_activity == TripActivity.ski) ...[
+              _question('Går turen i skredterreng?'),
+              _choices<bool?>(
+                const <(bool?, String)>[
+                  (null, 'Vet ikke'),
+                  (false, 'Nei, løyper/flatt'),
+                  (true, 'Ja, mulig skred'),
+                ],
+                _terrain,
+                (v) => _terrain = v,
+              ),
+            ],
+            _question('Overnatting?'),
+            _choices(
+              [
+                for (final a in const [
+                  AccommodationType.dayHike,
+                  AccommodationType.cabin,
+                  AccommodationType.tent,
+                  AccommodationType.mixed,
+                ])
+                  (a, a.label),
+              ],
+              _accommodation,
+              (v) => _accommodation = v,
+            ),
+            _question('Hvem blir med?'),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Færre deltakere',
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: _people > 1
+                      ? () => setState(() => _people--)
+                      : null,
+                ),
+                Text(
+                  fmtCount(_people, 'person', 'personer'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                IconButton(
+                  tooltip: 'Flere deltakere',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: _people < 20
+                      ? () => setState(() => _people++)
+                      : null,
+                ),
+                const Spacer(),
+                FilterChip(
+                  label: const Text('Hund med'),
+                  selected: _dog,
+                  onSelected: (v) => setState(() => _dog = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _apply,
+                child: const Text('Oppdater pakkelisten'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -75,7 +75,7 @@ class PackingEngine {
       // Short daylight outside summer makes a headlamp essential.
       darkEvenings: trip.hikingDays > 1 || shoulder || winter,
       avalanche: avalanche,
-      withDog: profile?.withDog ?? false,
+      withDog: trip.withDog ?? profile?.withDog ?? false,
       lightPacker: profile?.lightPacker ?? false,
       extraComfort: profile?.extraComfort ?? false,
       coldSensitive: profile?.coldSensitive ?? false,

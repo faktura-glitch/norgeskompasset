@@ -57,4 +57,20 @@ void main() {
     trip.avalancheTerrain = false;
     expect(_ids(trip), isNot(contains('beacon')));
   });
+
+  test('mixed tent + cabin trip gets both kits', () {
+    final trip = _tent(TripSeason.summer)
+      ..accommodation = AccommodationType.mixed;
+    expect(_ids(trip), containsAll(['tent', 'hutsheet', 'hutkey']));
+  });
+
+  test('trip-level dog choice overrides the profile', () {
+    final trip = _tent(TripSeason.summer);
+    final engine = PackingEngine();
+    expect(engine.conditionsFor(trip, null).withDog, isFalse);
+    trip.withDog = true;
+    expect(engine.conditionsFor(trip, null).withDog, isTrue);
+    final restored = Trip.fromJson(trip.toJson());
+    expect(restored.withDog, isTrue);
+  });
 }

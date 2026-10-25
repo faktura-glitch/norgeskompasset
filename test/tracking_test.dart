@@ -130,43 +130,43 @@ void main() {
     expect(controller.phase, TrackingPhase.active);
   });
 
-  test('off-route alert needs two consecutive fixes and is throttled', () async {
-    final alerts = <double>[];
-    final c = TrackingController(
-      source: source,
-      onPosition: (_, _) async {},
-      onFlush: (_) async {},
-      routeProvider: () => [
-        RoutePoint(60, 8),
-        RoutePoint(60.01, 8),
-      ],
-      onOffRouteAlert: alerts.add,
-    );
-    addTearDown(c.dispose);
-    await c.start('trip-a');
-    final offRoute = Position(
-      latitude: 60.005,
-      longitude: 8.003, // >80 m from the route line
-      timestamp: DateTime.now(),
-      accuracy: 5,
-      altitude: 100,
-      altitudeAccuracy: 1,
-      heading: 0,
-      headingAccuracy: 1,
-      speed: 1,
-      speedAccuracy: 1,
-    );
-    source.events.add(offRoute);
-    expect(c.offRoute, isFalse); // one bad fix is not enough
-    expect(alerts, isEmpty);
-    source.events.add(offRoute);
-    expect(c.offRoute, isTrue);
-    expect(alerts, hasLength(1));
-    // Still off-route: no second alert inside the cooldown window.
-    source.events.add(offRoute);
-    expect(alerts, hasLength(1));
-    // Back on route resets the counter.
-    source.events.add(fix());
-    expect(c.offRoute, isFalse);
-  });
+  test(
+    'off-route alert needs two consecutive fixes and is throttled',
+    () async {
+      final alerts = <double>[];
+      final c = TrackingController(
+        source: source,
+        onPosition: (_, _) async {},
+        onFlush: (_) async {},
+        routeProvider: () => [RoutePoint(60, 8), RoutePoint(60.01, 8)],
+        onOffRouteAlert: alerts.add,
+      );
+      addTearDown(c.dispose);
+      await c.start('trip-a');
+      final offRoute = Position(
+        latitude: 60.005,
+        longitude: 8.003, // >80 m from the route line
+        timestamp: DateTime.now(),
+        accuracy: 5,
+        altitude: 100,
+        altitudeAccuracy: 1,
+        heading: 0,
+        headingAccuracy: 1,
+        speed: 1,
+        speedAccuracy: 1,
+      );
+      source.events.add(offRoute);
+      expect(c.offRoute, isFalse); // one bad fix is not enough
+      expect(alerts, isEmpty);
+      source.events.add(offRoute);
+      expect(c.offRoute, isTrue);
+      expect(alerts, hasLength(1));
+      // Still off-route: no second alert inside the cooldown window.
+      source.events.add(offRoute);
+      expect(alerts, hasLength(1));
+      // Back on route resets the counter.
+      source.events.add(fix());
+      expect(c.offRoute, isFalse);
+    },
+  );
 }

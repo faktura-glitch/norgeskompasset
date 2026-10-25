@@ -93,8 +93,7 @@ void main() {
       final day1 = DateTime(2026, 6, 1, 10);
       final day2 = DateTime(2026, 6, 2, 10);
       final hours = [
-        for (var i = 0; i < 8; i++)
-          hour(day1.add(Duration(hours: i)), rain: 2),
+        for (var i = 0; i < 8; i++) hour(day1.add(Duration(hours: i)), rain: 2),
         for (var i = 0; i < 8; i++) hour(day2.add(Duration(hours: i))),
       ];
       final best = bestHikingDay(hours);

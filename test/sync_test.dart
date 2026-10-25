@@ -197,8 +197,10 @@ void main() {
       final remoteAt = DateTime.now().add(const Duration(milliseconds: 50));
       cloud.users['alice'] = {
         'conflict': CloudTripRecord(
-          data: (Trip(id: 'conflict', name: 'Eksternt')..updatedAt = remoteAt)
-              .encode(),
+          data: (Trip(
+            id: 'conflict',
+            name: 'Eksternt',
+          )..updatedAt = remoteAt).encode(),
           updatedAt: remoteAt,
         ),
       };

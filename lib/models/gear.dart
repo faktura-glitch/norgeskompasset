@@ -68,8 +68,9 @@ class TripConditions {
   });
 
   bool get overnight => accommodation != AccommodationType.dayHike;
-  bool get tent => accommodation == AccommodationType.tent;
-  bool get cabin => accommodation == AccommodationType.cabin;
+  bool get mixed => accommodation == AccommodationType.mixed;
+  bool get tent => accommodation == AccommodationType.tent || mixed;
+  bool get cabin => accommodation == AccommodationType.cabin || mixed;
   bool get multiDay => days > 1;
 
   /// Snow or a known forecast at/below freezing — real winter camping.
@@ -193,7 +194,12 @@ class GearItem {
     if (excludeActivities.contains(c.activity)) return false;
     if (carryModes.isNotEmpty && !carryModes.contains(c.carry)) return false;
     if (excludeCarry.contains(c.carry)) return false;
-    if (accommodation.isNotEmpty && !accommodation.contains(c.accommodation)) {
+    // A mixed trip (tent some nights, cabin others) needs both kits.
+    if (accommodation.isNotEmpty &&
+        !accommodation.contains(c.accommodation) &&
+        !(c.mixed &&
+            (accommodation.contains(AccommodationType.tent) ||
+                accommodation.contains(AccommodationType.cabin)))) {
       return false;
     }
     if (excludeAccommodation.contains(c.accommodation)) return false;

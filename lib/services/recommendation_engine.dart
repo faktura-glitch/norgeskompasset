@@ -171,7 +171,9 @@ class RecommendationEngine {
       }
       final (nf, nt) = TripAnalysis.nightWindow(stage, trip);
       final night = TripAnalysis.summarize(snaps, nf, nt);
-      if (night.freezingTemps && trip.accommodation == AccommodationType.tent) {
+      if (night.freezingTemps &&
+          (trip.accommodation == AccommodationType.tent ||
+              trip.accommodation == AccommodationType.mixed)) {
         out.add(
           Recommendation(
             id: _id(),

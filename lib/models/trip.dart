@@ -22,13 +22,14 @@ extension TripStatusX on TripStatus {
   };
 }
 
-enum AccommodationType { tent, cabin, dayHike }
+enum AccommodationType { tent, cabin, dayHike, mixed }
 
 extension AccommodationTypeX on AccommodationType {
   String get label => switch (this) {
     AccommodationType.tent => 'Telt',
     AccommodationType.cabin => 'Hytte',
     AccommodationType.dayHike => 'Dagstur',
+    AccommodationType.mixed => 'Telt og hytte',
   };
 }
 
@@ -169,6 +170,9 @@ class Trip {
   HikingPace pace;
   TripActivity activity;
   int participants;
+
+  /// Dog on this trip; null follows the profile setting.
+  bool? withDog;
   String notes;
   String? localTourId;
   HikingRoute? route;
@@ -222,6 +226,7 @@ class Trip {
     this.pace = HikingPace.normal,
     this.activity = TripActivity.foot,
     this.participants = 1,
+    this.withDog,
     this.notes = '',
     this.localTourId,
     this.route,
@@ -296,6 +301,7 @@ class Trip {
     'pace': pace.name,
     'activity': activity.name,
     'participants': participants,
+    if (withDog != null) 'withDog': withDog,
     'notes': notes,
     if (localTourId != null) 'localTourId': localTourId,
     'route': route?.toJson(),
@@ -336,6 +342,7 @@ class Trip {
     activity:
         TripActivity.values.asNameMap()[j['activity']] ?? TripActivity.foot,
     participants: j['participants'] as int? ?? 1,
+    withDog: j['withDog'] as bool?,
     notes: j['notes'] as String? ?? '',
     localTourId: j['localTourId'] as String?,
     route: j['route'] != null
@@ -415,6 +422,7 @@ class Trip {
     'pace': pace.name,
     'act': activity.name,
     'part': participants,
+    if (withDog != null) 'dog': withDog,
     if (notes.isNotEmpty) 'notes': notes,
     if (localTourId != null) 'localTour': localTourId,
     if (route != null) 'route': route!.toCompactJson(),
@@ -451,6 +459,7 @@ class Trip {
       pace: HikingPace.values.asNameMap()[j['pace']] ?? HikingPace.normal,
       activity: TripActivity.values.asNameMap()[j['act']] ?? TripActivity.foot,
       participants: j['part'] as int? ?? 1,
+      withDog: j['dog'] as bool?,
       notes: j['notes'] as String? ?? '',
       localTourId: j['localTour'] as String?,
       route: j['route'] != null
