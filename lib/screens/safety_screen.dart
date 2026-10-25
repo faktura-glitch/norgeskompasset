@@ -95,7 +95,7 @@ class _TripCardState extends State<_TripCard> {
       b.writeln('Medisinsk info: ${profile.medicalNotes}');
     }
     b.writeln(
-      'Periode: ${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)} (${trip.hikingDays} dag(er))',
+      'Periode: ${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)} (${fmtCount(trip.hikingDays, 'dag', 'dager')})',
     );
     if (trip.route?.hasRoute == true) {
       final r = trip.route!;

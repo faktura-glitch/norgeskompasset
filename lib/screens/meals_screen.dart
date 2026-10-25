@@ -210,7 +210,7 @@ class _Body extends StatelessWidget {
         icon: Icons.restaurant_menu_outlined,
         title: 'Ingen matplan',
         message:
-            'Generer en enkel matplan for ${trip.hikingDays} dag(er) og ${trip.participants} person(er). Grammene er omtrentlige – juster etter appetitt og aktivitet.',
+            'Generer en enkel matplan for ${fmtCount(trip.hikingDays, 'dag', 'dager')} og ${fmtCount(trip.participants, 'person', 'personer')}. Grammene er omtrentlige – juster etter appetitt og aktivitet.',
         action: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -248,7 +248,7 @@ class _Body extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          '${trip.name} · ${plan.days} dager · ${plan.people} personer',
+          '${trip.name} · ${fmtCount(plan.days, 'dag', 'dager')} · ${fmtCount(plan.people, 'person', 'personer')}',
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),

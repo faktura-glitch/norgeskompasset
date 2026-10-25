@@ -269,8 +269,12 @@ class Trip {
       stages.fold(0.0, (s, st) => s + st.estimatedMinutes);
 
   int get packedCount => packingList.where((i) => i.packed).length;
+  /// Required items still to go in the pack. Worn items (boots, hiking
+  /// clothes) never sit in the pack, so they are not counted as missing.
   int get missingRequiredCount => packingList
-      .where((i) => !i.packed && i.priority == PackingPriority.required)
+      .where(
+        (i) => !i.packed && !i.worn && i.priority == PackingPriority.required,
+      )
       .length;
 
   Map<String, dynamic> toJson() => {

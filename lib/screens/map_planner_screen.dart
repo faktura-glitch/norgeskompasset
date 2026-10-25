@@ -100,6 +100,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   // the drawn route then no longer matches the waypoint list.
   bool _routeDirty = false;
 
+  /// Extra room for the search bar (top), map buttons (right) and tap
+  /// mode chips (bottom) so start and goal markers are never hidden.
+  static const _routeFitPadding = EdgeInsets.fromLTRB(56, 96, 88, 88);
+  final _nameLookups = <Future<void>>{};
+
   /// Waypoint id being repositioned — the next map tap moves it.
   String? _moveId;
 
@@ -344,7 +349,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           _mapCtrl.fitCamera(
             CameraFit.coordinates(
               coordinates: points,
-              padding: const EdgeInsets.all(40),
+              padding: _routeFitPadding,
             ),
           );
         }
@@ -438,6 +443,28 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     } else {
       _anchors.add(w);
     }
+    if (name == null) _lookupName(w);
+  }
+
+  /// Replaces the generic «Start (A)»/«Mål (B)» label with the nearest
+  /// place name, unless the user moved or renamed the point meanwhile.
+  void _lookupName(Waypoint w) {
+    final fallback = w.name;
+    final lat = w.lat;
+    final lon = w.lon;
+    late final Future<void> job;
+    job = context
+        .read<AppState>()
+        .geocodingService
+        .reverse(w.latLng)
+        .then((name) {
+          if (!mounted || name == null) return;
+          if (w.name != fallback || w.lat != lat || w.lon != lon) return;
+          setState(() => w.name = name);
+        })
+        .catchError((Object _) {})
+        .whenComplete(() => _nameLookups.remove(job));
+    _nameLookups.add(job);
   }
 
   void _insertWaypoint(
@@ -490,13 +517,27 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       return;
     }
     if (state.lastError != null) nkToast(context, state.lastError!);
+    // The route was just computed - it is not out of date.
+    setState(() => _routeDirty = false);
+    if (trip.name.trim().isEmpty) {
+      await Future.wait(_nameLookups).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => <void>[],
+      );
+      final name = suggestTripName(anchors);
+      if (name.isNotEmpty) {
+        trip.name = name;
+        await state.saveTrip(trip);
+      }
+      if (!mounted) return;
+    }
     // Zoom to the computed route so the result is immediately visible.
     final pts = trip.route?.latLngs;
     if (pts != null && pts.length >= 2) {
       _mapCtrl.fitCamera(
         CameraFit.coordinates(
           coordinates: pts,
-          padding: const EdgeInsets.all(50),
+          padding: _routeFitPadding,
         ),
       );
     }
@@ -1123,7 +1164,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     _mapCtrl.fitCamera(
                       CameraFit.coordinates(
                         coordinates: route!.latLngs,
-                        padding: const EdgeInsets.all(40),
+                        padding: _routeFitPadding,
                       ),
                     );
                   }
@@ -1305,7 +1346,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
         Text(
-          '${trip.activity.label} · ${trip.season.label} · ${trip.hikingDays} dager',
+          '${trip.activity.label} · ${trip.season.label} · ${fmtCount(trip.hikingDays, 'dag', 'dager')}',
         ),
         Row(
           children: [
@@ -1661,7 +1702,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       _mapCtrl.fitCamera(
         CameraFit.coordinates(
           coordinates: trip.route!.latLngs,
-          padding: const EdgeInsets.all(50),
+          padding: _routeFitPadding,
         ),
       );
       await state.fetchElevation(trip);
@@ -1693,7 +1734,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Ruten fordeles på $days dag(er)${trip.startDate == null ? ' – startdato settes til i dag' : ''}.',
+                'Ruten fordeles på ${fmtCount(days, 'dag', 'dager')}${trip.startDate == null ? ' – startdato settes til i dag' : ''}.',
                 style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 4),
@@ -2506,6 +2547,10 @@ class _RouteSummary extends StatelessWidget {
     // fetch has run — before that, show an honest "not fetched"
     // state with a direct retry instead of misleading +0 m.
     final hasElevation = route.points.any((p) => p.elevation != null);
+    final loadingElevation = context.select<AppState, bool>(
+      (s) => s.busy && s.busyLabel == AppState.elevationBusyLabel,
+    );
+    final showElevation = hasElevation || loadingElevation;
 
     return NkCard(
       child: Column(
@@ -2559,27 +2604,33 @@ class _RouteSummary extends StatelessWidget {
                 '${trip.stages.length}',
                 icon: Icons.flag_outlined,
               ),
-              if (hasElevation)
+              if (showElevation)
                 InfoTile(
                   'Stigning',
-                  '+${route.totalAscent.round()} m',
+                  loadingElevation
+                      ? 'Beregner…'
+                      : '+${route.totalAscent.round()} m',
                   icon: Icons.trending_up,
                 ),
-              if (hasElevation)
+              if (showElevation)
                 InfoTile(
                   'Nedstigning',
-                  '-${route.totalDescent.round()} m',
+                  loadingElevation
+                      ? 'Beregner…'
+                      : '−${route.totalDescent.round()} m',
                   icon: Icons.trending_down,
                 ),
-              if (hasElevation)
+              if (showElevation)
                 InfoTile(
                   'Høyeste punkt',
-                  fmtMeters(route.highestPoint),
+                  loadingElevation
+                      ? 'Beregner…'
+                      : fmtMeters(route.highestPoint),
                   icon: Icons.terrain,
                 ),
             ],
           ),
-          if (!hasElevation) ...[
+          if (!showElevation) ...[
             const SizedBox(height: 10),
             Row(
               children: [

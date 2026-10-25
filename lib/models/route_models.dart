@@ -42,6 +42,33 @@ enum RouteSource {
   estimated,
 }
 
+/// Labels the planner gives points before a real place name is known.
+bool isGenericWaypointName(String name) {
+  final n = name.trim();
+  return n.isEmpty ||
+      n == 'Start (A)' ||
+      n == 'Mål (B)' ||
+      n == 'Punkt' ||
+      n == 'Overnatting' ||
+      n.startsWith('Via-punkt');
+}
+
+/// Trip name from the route's start and goal, e.g. «Stavsro – Gaustatoppen».
+/// Returns '' when neither point has a real place name.
+String suggestTripName(List<Waypoint> waypoints) {
+  String? named(WaypointType type) {
+    final w = waypoints.where((w) => w.type == type).firstOrNull;
+    return w == null || isGenericWaypointName(w.name) ? null : w.name.trim();
+  }
+
+  final start = named(WaypointType.start);
+  final end = named(WaypointType.end);
+  if (start != null && end != null) {
+    return start == end ? 'Rundtur fra $start' : '$start – $end';
+  }
+  return start ?? end ?? '';
+}
+
 class Waypoint {
   final String id;
   String name;

@@ -384,12 +384,12 @@ class _TripTile extends StatelessWidget {
                 if (trip.stages.isNotEmpty)
                   metaChip(
                     Icons.flag_outlined,
-                    '${trip.stages.length} etapper',
+                    fmtCount(trip.stages.length, 'etappe', 'etapper'),
                   ),
                 if (activeRecs > 0)
                   metaChip(
                     Icons.warning_amber_outlined,
-                    '$activeRecs varsler',
+                    fmtCount(activeRecs, 'varsel', 'varsler'),
                     color: NkColors.warning,
                   ),
                 if (trip.shareCode != null)
@@ -398,7 +398,7 @@ class _TripTile extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Pakket (vekt): ${(trip.packingCompletion * 100).round()} %',
+              '${(trip.packingCompletion * 100).round()} % pakket (etter vekt)',
               style: TextStyle(color: NkColors.textSecondary),
             ),
             Wrap(

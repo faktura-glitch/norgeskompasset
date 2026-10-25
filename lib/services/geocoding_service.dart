@@ -24,6 +24,54 @@ class PlaceResult {
 /// is debounced by callers).
 class GeocodingService {
   static const _endpoint = 'https://nominatim.openstreetmap.org/search';
+  static const _reverseEndpoint =
+      'https://nominatim.openstreetmap.org/reverse';
+
+  /// Nearest place name for a tapped map point, or null when the lookup
+  /// fails - callers keep their generic label then.
+  Future<String?> reverse(LatLng point) async {
+    final uri = Uri.parse(_reverseEndpoint).replace(queryParameters: {
+      'format': 'jsonv2',
+      'lat': point.latitude.toStringAsFixed(5),
+      'lon': point.longitude.toStringAsFixed(5),
+      'zoom': '15',
+      'accept-language': 'nb',
+    });
+    try {
+      final res = await http.get(uri, headers: {
+        if (!kIsWeb) 'User-Agent': kUserAgent,
+      }).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body);
+      return body is Map ? placeNameFrom(Map<String, dynamic>.from(body)) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Picks a short, human place name from a Nominatim reverse result.
+  static String? placeNameFrom(Map<String, dynamic> m) {
+    final name = (m['name'] as String?)?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final address = m['address'];
+    if (address is Map) {
+      for (final key in const [
+        'peak',
+        'natural',
+        'locality',
+        'hamlet',
+        'village',
+        'suburb',
+        'town',
+        'city',
+        'municipality',
+      ]) {
+        final v = (address[key] as String?)?.trim();
+        if (v != null && v.isNotEmpty) return v;
+      }
+    }
+    return null;
+  }
 
   Future<List<PlaceResult>> search(String query) async {
     if (query.trim().length < 2) return [];

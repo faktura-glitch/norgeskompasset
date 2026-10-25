@@ -1,0 +1,80 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:norgeskompasset/core/format.dart';
+import 'package:norgeskompasset/models/route_models.dart';
+import 'package:norgeskompasset/services/geocoding_service.dart';
+
+Waypoint _wp(String name, WaypointType type) =>
+    Waypoint(id: name, name: name, lat: 59.85, lon: 8.65, type: type);
+
+void main() {
+  test('fmtCount picks singular or plural', () {
+    expect(fmtCount(1, 'dag', 'dager'), '1 dag');
+    expect(fmtCount(3, 'dag', 'dager'), '3 dager');
+    expect(fmtCount(0, 'etappe', 'etapper'), '0 etapper');
+  });
+
+  group('suggestTripName', () {
+    test('uses start and goal names', () {
+      expect(
+        suggestTripName([
+          _wp('Stavsro', WaypointType.start),
+          _wp('Gaustatoppen', WaypointType.end),
+        ]),
+        'Stavsro – Gaustatoppen',
+      );
+    });
+
+    test('falls back to the one real name', () {
+      expect(
+        suggestTripName([
+          _wp('Gaustatoppen', WaypointType.start),
+          _wp('Mål (B)', WaypointType.end),
+        ]),
+        'Gaustatoppen',
+      );
+    });
+
+    test('same start and goal is a round trip', () {
+      expect(
+        suggestTripName([
+          _wp('Stavsro', WaypointType.start),
+          _wp('Stavsro', WaypointType.end),
+        ]),
+        'Rundtur fra Stavsro',
+      );
+    });
+
+    test('generic labels give no name', () {
+      expect(
+        suggestTripName([
+          _wp('Start (A)', WaypointType.start),
+          _wp('Mål (B)', WaypointType.end),
+        ]),
+        '',
+      );
+    });
+  });
+
+  group('GeocodingService.placeNameFrom', () {
+    test('prefers the object name', () {
+      expect(
+        GeocodingService.placeNameFrom({'name': 'Gaustatoppen'}),
+        'Gaustatoppen',
+      );
+    });
+
+    test('falls back to address parts', () {
+      expect(
+        GeocodingService.placeNameFrom({
+          'name': '',
+          'address': {'hamlet': 'Stavsro', 'municipality': 'Tinn'},
+        }),
+        'Stavsro',
+      );
+    });
+
+    test('returns null without usable names', () {
+      expect(GeocodingService.placeNameFrom({'address': {}}), isNull);
+    });
+  });
+}

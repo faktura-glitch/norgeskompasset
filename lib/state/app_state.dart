@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/energy.dart';
+import '../core/format.dart';
 import '../core/geo.dart';
 import '../models/alert.dart';
 import '../models/catalog_trip.dart';
@@ -60,6 +61,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> useLocalMode(bool value) async {
     if (value) await syncWithCloud(null);
     localOnly = value;
+    await repo.saveLocalModePref(value);
     notifyListeners();
   }
 
@@ -149,6 +151,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     profile = repo.loadProfile();
     trips = repo.loadTrips();
     if (trips.isNotEmpty) currentTripId = trips.first.id;
+    if (repo.localModePref) {
+      await syncWithCloud(null);
+      localOnly = true;
+    }
     notifyListeners();
   }
 
@@ -846,10 +852,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Fetches elevation for route points, recomputes stats. Re-runs
   /// stage analysis afterwards so everything stays consistent.
+  static const elevationBusyLabel = 'Henter høydedata…';
+
   Future<void> fetchElevation(Trip trip) async {
     final route = trip.route;
     if (route == null || !route.hasRoute) return;
-    await _run('Henter høydedata…', () async {
+    await _run(elevationBusyLabel, () async {
       try {
         await elevationService.fetchElevations(route.points);
         final stats = elevationStats(route.points);
@@ -1308,7 +1316,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           PackingItem(
             id: 'food-total',
             name:
-                'Mat for ${plan.days} dag(er) (${plan.meals.length} måltider)',
+                'Mat for ${fmtCount(plan.days, 'dag', 'dager')} (${fmtCount(plan.meals.length, 'måltid', 'måltider')})',
             category: PackingCategory.food,
             quantity: 1,
             unitWeightGrams: plan.totalFoodWeightGrams,

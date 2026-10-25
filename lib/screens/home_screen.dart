@@ -12,7 +12,6 @@ import '../widgets/common.dart';
 import 'elevation_screen.dart';
 import 'meals_screen.dart';
 import 'hiking_screen.dart';
-import '../models/packing.dart';
 import 'recommendations_screen.dart';
 import 'trips_screen.dart';
 import 'weather_screen.dart';
@@ -288,7 +287,10 @@ class _UpcomingTripCard extends StatelessWidget {
                       Icons.calendar_today_outlined,
                       '${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)}',
                     ),
-                    _IconText(Icons.schedule, '${trip.hikingDays} dag(er)'),
+                    _IconText(
+                      Icons.schedule,
+                      fmtCount(trip.hikingDays, 'dag', 'dager'),
+                    ),
                     _IconText(Icons.bed_outlined, trip.accommodation.label),
                     if (route != null && route.hasRoute)
                       _IconText(
@@ -561,9 +563,7 @@ class _PackingCard extends StatelessWidget {
         .where((i) => i.packed)
         .fold(0.0, (s, i) => s + i.totalWeightGrams);
     final weightProgress = totalGrams > 0 ? packedGrams / totalGrams : 0.0;
-    final missing = items
-        .where((i) => !i.packed && i.priority == PackingPriority.required)
-        .length;
+    final missing = trip.missingRequiredCount;
     return _ReadinessCard(
       icon: Icons.checklist,
       title: 'Pakking',
@@ -589,7 +589,9 @@ class _PackingCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '$missing nødvendige ting mangler',
+                  missing == 0
+                      ? 'Alt nødvendig er pakket'
+                      : '${fmtCount(missing, 'nødvendig ting', 'nødvendige ting')} mangler',
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
                 Text(
@@ -628,7 +630,7 @@ class _MealCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${plan.days} dager · ${plan.meals.length} måltider',
+                  '${fmtCount(plan.days, 'dag', 'dager')} · ${plan.meals.length} måltider',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -786,7 +788,7 @@ class _AlertsSection extends StatelessWidget {
       // A generated-but-untouched list is not "ready" — the pack
       // still has to be physically packed.
       if (trip.packingList.isNotEmpty && unpacked > 0)
-        'Pakk sekken – $unpacked gjenstander igjen',
+        'Pakk sekken – ${fmtCount(unpacked, 'gjenstand', 'gjenstander')} igjen',
       if (trip.mealPlan == null) 'Lag matplan',
       if (trip.weather.isEmpty && trip.route?.hasRoute == true)
         'Hent værprognose',
@@ -870,7 +872,9 @@ class _AlertsSection extends StatelessWidget {
               ),
             ),
           ),
-        for (final t in tasks.take(3))
+        for (final t in tasks
+            .where((t) => !active.take(3).any((r) => r.title == t))
+            .take(3))
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(

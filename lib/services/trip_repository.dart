@@ -543,6 +543,13 @@ class TripRepository {
   Future<void> saveOnboardingSeen() =>
       _settings?.put('onboarding_seen', true) ?? Future.value();
 
+  /// Whether the user chose «Fortsett lokalt uten konto» - remembered
+  /// so the login screen is not shown again on every start.
+  bool get localModePref => _settings?.get('local_mode') as bool? ?? false;
+
+  Future<void> saveLocalModePref(bool value) =>
+      _settings?.put('local_mode', value) ?? Future.value();
+
   // ── Packing templates ──────────────────────────────────────
   List<Map<String, dynamic>> loadTemplates() {
     final raw = _profileSettings?.get(_templatesKey) as List? ?? [];

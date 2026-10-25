@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../core/geo.dart';
 import '../core/test_env.dart';
+import '../core/format.dart';
 import '../models/local_tour.dart';
 import '../models/route_models.dart';
 import '../models/trip.dart';
@@ -131,7 +132,7 @@ class _LocalTourSuggestionsState extends State<LocalTourSuggestions> {
               title: Text(tour.name),
               subtitle: Text(
                 '${tour.region} · ${tour.municipality}\n'
-                '${tour.activity.label} · ${tour.carry.label} · ${tour.durationDays} dag(er), planforslag\n'
+                '${tour.activity.label} · ${tour.carry.label} · ${fmtCount(tour.durationDays, 'dag', 'dager')}, planforslag\n'
                 'Oppgitt: ${tour.reportedDistanceKm.toStringAsFixed(0)} km · ikke kontrollert'
                 '${widget.nearest && location != null ? '\n${(metersBetween(location, tour.previewRoute().start!) / 1000).toStringAsFixed(1)} km i luftlinje til oppgitt start' : ''}',
               ),
