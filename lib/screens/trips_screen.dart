@@ -356,7 +356,7 @@ class _TripTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Oppdatert fra en annen enhet – trykk for å skjule',
+                      'Endret på en annen enhet – trykk for å beholde denne versjonen',
                       style: TextStyle(fontSize: 11, color: NkColors.warning),
                     ),
                   ],
@@ -434,6 +434,14 @@ class _TripTile extends StatelessWidget {
                     switch (value) {
                       case 'share':
                         await _shareTrip(context);
+                      case 'unshare':
+                        final error = await state.unshareTrip(trip);
+                        if (context.mounted) {
+                          nkToast(
+                            context,
+                            error ?? 'Turen deles ikke lenger – koden virker ikke mer.',
+                          );
+                        }
                       case 'safety':
                         state.selectTrip(trip.id);
                         Navigator.push(
@@ -464,6 +472,11 @@ class _TripTile extends StatelessWidget {
                       value: 'share',
                       child: Text('Del med turkode'),
                     ),
+                    if (trip.shareCode != null)
+                      const PopupMenuItem(
+                        value: 'unshare',
+                        child: Text('Slutt å dele'),
+                      ),
                     const PopupMenuItem(
                       value: 'safety',
                       child: Text('Turkort og sikkerhet'),

@@ -187,6 +187,62 @@ void main() {
   );
 
   test(
+    'acknowledging a conflict keeps the local version and clears it for good',
+    () async {
+      await repo.setUser('alice');
+      await repo.saveTrip(
+        Trip(id: 'conflict', name: 'Lokalt'),
+        syncCloud: false,
+      );
+      final remoteAt = DateTime.now().add(const Duration(milliseconds: 50));
+      cloud.users['alice'] = {
+        'conflict': CloudTripRecord(
+          data: (Trip(id: 'conflict', name: 'Eksternt')..updatedAt = remoteAt)
+              .encode(),
+          updatedAt: remoteAt,
+        ),
+      };
+      await repo.syncFromCloud();
+      expect(repo.cloudConflictIds, contains('conflict'));
+      expect(repo.pendingCount, 1);
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await repo.clearConflict('conflict');
+      await repo.syncFromCloud();
+      expect(repo.cloudConflictIds, isEmpty);
+      expect(repo.pendingCount, 0);
+      expect(
+        Trip.decode(cloud.users['alice']!['conflict']!.data!).name,
+        'Lokalt',
+      );
+
+      await repo.setUser(null);
+      await repo.setUser('alice');
+      expect(repo.cloudConflictIds, isEmpty);
+    },
+  );
+
+  test('a newer local copy is re-queued without the GPS track', () async {
+    await repo.setUser('alice');
+    final trip = Trip(id: 'gps', name: 'Med spor')
+      ..trackLog = [TrackPoint(60, 8, 100, DateTime.now())];
+    await repo.saveTrip(trip, syncCloud: false);
+    await repo.syncFromCloud();
+    expect(repo.pendingCount, 0);
+    final uploaded = cloud.users['alice']!['gps']!;
+    cloud.users['alice']!['gps'] = CloudTripRecord(
+      data: uploaded.data,
+      updatedAt: DateTime(2000),
+    );
+
+    await repo.syncFromCloud();
+    final reuploaded = cloud.users['alice']!['gps']!;
+    expect(reuploaded.updatedAt.isAfter(DateTime(2000)), isTrue);
+    expect(Trip.decode(reuploaded.data!).trackLog, isEmpty);
+    expect(repo.loadTrips().single.trackLog, hasLength(1));
+  });
+
+  test(
     'a trip object loaded for another account cannot be saved here',
     () async {
       await repo.setUser('alice');

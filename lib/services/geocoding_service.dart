@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import '../core/http_identity.dart';
 import 'weather_service.dart' show ServiceException, describeNetworkError;
 
 class PlaceResult {
@@ -36,7 +37,7 @@ class GeocodingService {
     http.Response res;
     try {
       res = await http.get(uri, headers: {
-        if (!kIsWeb) 'User-Agent': 'NorgesKompasset/1.0 (hiking planner)',
+        if (!kIsWeb) 'User-Agent': kUserAgent,
       }).timeout(const Duration(seconds: 12));
     } catch (e) {
       throw ServiceException(

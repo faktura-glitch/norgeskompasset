@@ -167,8 +167,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// UI so overwrites aren't silent.
   Set<String> get cloudConflicts => repo.cloudConflictIds;
 
-  void clearCloudConflict(String tripId) {
-    repo.clearConflict(tripId);
+  Future<void> clearCloudConflict(String tripId) async {
+    await repo.clearConflict(tripId);
     notifyListeners();
   }
 
@@ -258,6 +258,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return code;
   }
 
+  /// Stops sharing [trip] so its code no longer works. Returns a
+  /// user-facing error message, or null on success.
+  Future<String?> unshareTrip(Trip trip) async {
+    final removed = await repo.unpublishTrip(trip);
+    if (removed == null) {
+      return 'Kunne ikke slutte å dele — sjekk at du er innlogget og på nett.';
+    }
+    if (!removed) return 'Bare den som delte turen kan slutte å dele den.';
+    await repo.saveTrip(trip);
+    notifyListeners();
+    return null;
+  }
+
   /// Fetches the trip published under [code] and imports it as a new
   /// local trip. The shared plan (route, dates, season, accommodation)
   /// is kept, while personal data is reset — each participant builds
@@ -335,6 +348,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> deleteTrip(String id) async {
+    final deleted = trips.where((t) => t.id == id).firstOrNull;
+    // A deleted trip should not stay readable via its share code.
+    if (deleted?.shareCode != null && !localOnly) {
+      unawaited(repo.unpublishTrip(deleted!));
+    }
     trips.removeWhere((t) => t.id == id);
     if (currentTripId == id) {
       currentTripId = trips.isEmpty ? null : trips.first.id;

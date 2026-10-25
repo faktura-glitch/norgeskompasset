@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import '../core/http_identity.dart';
 import '../models/alert.dart';
 import '../models/weather.dart';
 
@@ -51,7 +52,7 @@ class WeatherService {
 
   Map<String, String> get _headers => {
         if (!kIsWeb)
-          'User-Agent': 'NorgesKompasset/1.0 (hiking planner; contact: dev)',
+          'User-Agent': kUserAgent,
         'Accept': 'application/json',
       };
 

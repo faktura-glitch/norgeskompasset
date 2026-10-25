@@ -18,8 +18,9 @@ service cloud.firestore {
 
     // Shared trip snapshots: readable by any signed-in user who has
     // the code; only the owner may create/update/delete the doc.
+    // `get` only — `list` would let anyone enumerate every shared trip.
     match /sharedTrips/{code} {
-      allow read: if request.auth != null;
+      allow get: if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.owner == request.auth.uid;
       allow update, delete: if request.auth != null

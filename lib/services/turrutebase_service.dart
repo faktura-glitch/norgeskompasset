@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:xml/xml.dart';
 
 import '../core/geo.dart';
+import '../core/http_identity.dart';
 import '../models/route_models.dart';
 import '../models/trip.dart';
 import 'weather_service.dart' show ServiceException, describeNetworkError;
@@ -134,7 +135,7 @@ class TurrutebaseService {
           .get(
             uri,
             headers: {
-              'User-Agent': 'NorgesKompasset/1.0 (ai.norgeskompasset.app)',
+              'User-Agent': kUserAgent,
             },
           )
           .timeout(const Duration(seconds: 25));

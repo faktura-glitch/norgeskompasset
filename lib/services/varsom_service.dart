@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import '../core/http_identity.dart';
 import '../models/avalanche.dart';
 import 'weather_service.dart' show ServiceException;
 
@@ -26,6 +28,7 @@ class VarsomService {
     try {
       res = await http.get(Uri.parse(url), headers: const {
         'Accept': 'application/json',
+        if (!kIsWeb) 'User-Agent': kUserAgent,
       }).timeout(const Duration(seconds: 15));
     } catch (e) {
       throw ServiceException(

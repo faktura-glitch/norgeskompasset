@@ -8,6 +8,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
+import '../core/http_identity.dart';
+
 /// Persistent map-tile cache backed by Hive. Tiles the user has viewed
 /// once are stored locally, so the map still renders for those areas
 /// when the device is offline (e.g. active hiking mode in the field).
@@ -178,7 +180,7 @@ class TileCache {
               final res = await httpClient
                   .get(
                     Uri.parse(u),
-                    headers: {'User-Agent': 'NorgesKompasset/1.0'},
+                    headers: {'User-Agent': kUserAgent},
                   )
                   .timeout(const Duration(seconds: 15));
               if (res.statusCode == 200) {
@@ -258,7 +260,7 @@ class _CachedTileImage extends ImageProvider<_CachedTileImage> {
   static Future<Uint8List?> _fetch(String url) async {
     try {
       final res = await http
-          .get(Uri.parse(url), headers: {'User-Agent': 'NorgesKompasset/1.0'})
+          .get(Uri.parse(url), headers: {'User-Agent': kUserAgent})
           .timeout(const Duration(seconds: 15));
       return res.statusCode == 200 ? res.bodyBytes : null;
     } catch (_) {

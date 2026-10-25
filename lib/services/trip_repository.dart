@@ -254,6 +254,7 @@ class TripRepository {
       );
     }
     await trips?.delete(id);
+    await conflicts?.delete(id);
     if (scope == _scopeKey) cloudConflictIds.remove(id);
     if (uid != null && pending != null && conflicts != null) {
       unawaited(_pushToCloud(uid, scope, pending, conflicts));
@@ -266,7 +267,28 @@ class TripRepository {
   /// isn't silent. Cleared when the user acknowledges via [clearConflict].
   final Set<String> cloudConflictIds = {};
 
-  void clearConflict(String id) => cloudConflictIds.remove(id);
+  /// Acknowledges a conflict and keeps the version shown on this device.
+  /// A local edit still queued behind a newer cloud copy is re-stamped so
+  /// it wins the next upload instead of staying stuck in the queue.
+  Future<void> clearConflict(String id) async {
+    final scope = _scopeKey;
+    final trips = _trips;
+    final pending = _pending;
+    final conflicts = _conflicts;
+    cloudConflictIds.remove(id);
+    await conflicts?.delete(id);
+    final raw = trips?.get(id);
+    if (pending != null && pending.containsKey(id) && raw != null) {
+      await saveTrip(Trip.decode(raw));
+    } else if (conflicts != null &&
+        conflicts.isEmpty &&
+        syncStatus.value.phase == TripSyncPhase.conflict) {
+      _status(
+        scope,
+        pendingCount == 0 ? TripSyncPhase.synced : TripSyncPhase.pending,
+      );
+    }
+  }
 
   /// Merges the user's cloud trips into local storage (newest
   /// updatedAt wins) and pushes local trips the cloud is missing.
@@ -305,7 +327,10 @@ class TripRepository {
             await pending.put(
               id,
               jsonEncode(
-                CloudTripRecord(data: raw, updatedAt: local.updatedAt).toJson(),
+                CloudTripRecord(
+                  data: jsonEncode(local.toSyncJson()),
+                  updatedAt: local.updatedAt,
+                ).toJson(),
               ),
             );
           } else if (record.deleted) {
@@ -389,6 +414,30 @@ class TripRepository {
       }));
       trip.shareCode = code;
       return code;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Stops sharing [trip] by deleting its shared snapshot so the code no
+  /// longer works. Returns true when removed (or already gone), false
+  /// when the snapshot belongs to someone else, null on failure.
+  Future<bool?> unpublishTrip(Trip trip) async {
+    final shared = _shared;
+    final uid = _uid;
+    final code = trip.shareCode;
+    if (shared == null || uid == null || code == null) return null;
+    try {
+      final removed = await _serialize(() async {
+        final doc = shared.doc(code);
+        final snapshot = await doc.get();
+        if (!snapshot.exists) return true;
+        if (snapshot.data()?['owner'] != uid) return false;
+        await doc.delete();
+        return true;
+      });
+      if (removed) trip.shareCode = null;
+      return removed;
     } catch (_) {
       return null;
     }
