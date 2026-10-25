@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1000927215680",
+    "project_id": "norges-kompasset-pro",
+    "storage_bucket": "norges-kompasset-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1000927215680:android:a60d24682789bd69a6dfa5",
+        "android_client_info": {
+          "package_name": "no.norgeskompasset.norgeskompasset"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1000927215680-o6pl3jmjqhil2dnmc40f9r0l7ht99e0j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBa7jg4_h6vGfT2oATZtlppMsiPsxwlvpk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1000927215680-o6pl3jmjqhil2dnmc40f9r0l7ht99e0j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
