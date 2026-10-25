@@ -248,7 +248,10 @@ class _UpcomingTripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final route = trip.route;
-    final hasRoute = route?.hasRoute == true;
+    // A 0,0 km 'route' (start and goal on the same spot) does not
+    // count as a planned route.
+    final hasRoute =
+        route?.hasRoute == true && (route?.distanceMeters ?? 0) > 0;
     final hasDates = trip.startDate != null;
     final packed =
         hasRoute &&

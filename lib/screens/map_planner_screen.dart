@@ -515,6 +515,27 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     final state = context.read<AppState>();
     if (_anchors.length < 2 || state.busy) return;
     final anchors = List<Waypoint>.of(_anchors);
+    // A trip whose start and goal sit on top of each other makes no
+    // sense (0,0 km) — a round trip needs at least one via point.
+    final start = anchors.firstWhere(
+      (w) => w.type == WaypointType.start,
+      orElse: () => anchors.first,
+    );
+    final end = anchors.lastWhere(
+      (w) => w.type == WaypointType.end,
+      orElse: () => anchors.last,
+    );
+    final hasVia = anchors.any(
+      (w) => w.type != WaypointType.start && w.type != WaypointType.end,
+    );
+    if (!hasVia && const Distance()(start.latLng, end.latLng) < 30) {
+      nkToast(
+        context,
+        'Start og mål er samme sted – velg et mål et annet sted, '
+        'eller legg til via-punkter for en rundtur.',
+      );
+      return;
+    }
     final trip = await _ensureTrip();
     if (!mounted) return;
     // Creating the first draft notifies listeners and can reset the
