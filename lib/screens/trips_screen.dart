@@ -469,6 +469,11 @@ class _TripTile extends StatelessWidget {
                   },
                   itemBuilder: (_) => [
                     const PopupMenuItem(
+                      enabled: false,
+                      height: 26,
+                      child: _MenuHeader('Deling'),
+                    ),
+                    const PopupMenuItem(
                       value: 'share',
                       child: Text('Del med turkode'),
                     ),
@@ -477,6 +482,17 @@ class _TripTile extends StatelessWidget {
                         value: 'unshare',
                         child: Text('Slutt å dele'),
                       ),
+                    if (trip.route?.hasRoute == true)
+                      const PopupMenuItem(
+                        value: 'publish',
+                        child: Text('Publiser i turkatalogen'),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      enabled: false,
+                      height: 26,
+                      child: _MenuHeader('Tur'),
+                    ),
                     const PopupMenuItem(
                       value: 'safety',
                       child: Text('Turkort og sikkerhet'),
@@ -485,18 +501,22 @@ class _TripTile extends StatelessWidget {
                       value: 'copy',
                       child: Text('Dupliser tur'),
                     ),
-                    if (trip.route?.hasRoute == true)
-                      const PopupMenuItem(
-                        value: 'publish',
-                        child: Text('Publiser i turkatalogen'),
-                      ),
                     const PopupMenuItem(
                       value: 'review',
                       child: Text('Evaluer turen'),
                     ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      enabled: false,
+                      height: 26,
+                      child: _MenuHeader('Farlig'),
+                    ),
                     const PopupMenuItem(
                       value: 'delete',
-                      child: Text('Slett tur'),
+                      child: Text(
+                        'Slett tur',
+                        style: TextStyle(color: NkColors.dangerRed),
+                      ),
                     ),
                   ],
                   child: const Padding(
@@ -684,5 +704,24 @@ class _TripTile extends StatelessWidget {
         ),
       );
     }
+  }
+}
+
+/// Non-selectable group label inside the «Flere valg» popup menu.
+class _MenuHeader extends StatelessWidget {
+  final String label;
+  const _MenuHeader(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.6,
+        color: NkColors.textSecondary,
+      ),
+    );
   }
 }

@@ -191,60 +191,56 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 14),
           const SectionHeader('Turverktøy', icon: Icons.hiking_outlined),
           const SizedBox(height: 10),
-          for (final (icon, title, subtitle, screen) in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: NkCard(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => screen),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: NkColors.primaryBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(icon, size: 20, color: NkColors.primaryBlue),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+          // Compact shortcut grid — the tools are reachable in
+          // two columns instead of one tall list, so Mer stays
+          // about account and settings. (Wrap, not GridView: the
+          // parent ListView must stay the only scrollable.)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellWidth = (constraints.maxWidth - 8) / 2;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final (icon, title, _, screen) in items)
+                    SizedBox(
+                      width: cellWidth,
+                      child: NkCard(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => screen),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              icon,
+                              size: 18,
+                              color: NkColors.primaryBlue,
                             ),
-                          ),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: NkColors.textSecondary,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: NkColors.textSecondary,
-                      size: 18,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 14),
           const SectionHeader('Innstillinger', icon: Icons.tune),
           const SizedBox(height: 10),
