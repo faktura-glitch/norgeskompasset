@@ -116,7 +116,7 @@ class _Header extends StatelessWidget {
                 children: [
                   IconButton(
                     icon: const Icon(
-                      Icons.notifications_outlined,
+                      Icons.lightbulb_outline,
                       color: Colors.white,
                     ),
                     tooltip: 'Anbefalinger for valgt tur',
@@ -877,11 +877,15 @@ class _AlertsSection extends StatelessWidget {
       );
     }
 
+    // With no alerts the section hides — the preparation tasks
+    // are already covered by the Forberedelser grid below, so
+    // listing them here only duplicated them.
+    if (active.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(
-          'Viktige endringer og oppgaver',
+          'Viktige endringer og varsler',
           icon: Icons.priority_high,
         ),
         const SizedBox(height: 10),
@@ -932,30 +936,7 @@ class _AlertsSection extends StatelessWidget {
               ),
             ),
           ),
-        for (final t
-            in tasks
-                .where((t) => !active.take(3).any((r) => r.title == t))
-                .take(3))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.radio_button_unchecked,
-                  size: 16,
-                  color: NkColors.warningAmber,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    t,
-                    style: TextStyle(fontSize: 13, color: NkColors.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (active.length > 3 || tasks.length > 3)
+        if (active.length > 3)
           TextButton(
             onPressed: () => Navigator.push(
               context,
