@@ -7,6 +7,27 @@ import '../models/weather.dart';
 import 'packing_engine.dart';
 import 'trip_analysis.dart';
 
+/// True when any day of the trip falls inside the yearly period
+/// [startMonth]/[startDay]–[endMonth]/[endDay] (inclusive). Trips
+/// without dates return false — a rule is never asserted on a guess.
+bool tripOverlapsPeriod(
+  Trip trip, {
+  required int startMonth,
+  required int startDay,
+  required int endMonth,
+  required int endDay,
+}) {
+  final start = trip.startDate;
+  if (start == null) return false;
+  final end = trip.endDate ?? start;
+  for (final year in {start.year, end.year}) {
+    final from = DateTime(year, startMonth, startDay);
+    final to = DateTime(year, endMonth, endDay, 23, 59);
+    if (!end.isBefore(from) && !start.isAfter(to)) return true;
+  }
+  return false;
+}
+
 /// Builds [PlanningContext] — the single derived bridge between the
 /// route/external conditions and the generated plans. Pure computation:
 /// reads the trip, never mutates it, never fabricates missing data.
@@ -114,6 +135,34 @@ abstract final class PlanningContextBuilder {
 
     // ── Honest gaps the user must check ────────────────────
     final checks = <String>[];
+    // Norwegian seasonal rules that depend only on the dates.
+    if (cond.overnight &&
+        tripOverlapsPeriod(
+          trip,
+          startMonth: 4,
+          startDay: 15,
+          endMonth: 9,
+          endDay: 15,
+        )) {
+      checks.add(
+        'Generelt bålforbud 15. april–15. september: ikke bål i eller nær '
+        'skog og utmark. Bruk brenner – og sjekk kommunens regler, noen '
+        'har totalforbud i tørre perioder.',
+      );
+    }
+    if (cond.withDog &&
+        tripOverlapsPeriod(
+          trip,
+          startMonth: 4,
+          startDay: 1,
+          endMonth: 8,
+          endDay: 20,
+        )) {
+      checks.add(
+        'Båndtvang 1. april–20. august: hunden skal gå i bånd. Mange '
+        'kommuner har utvidet båndtvang i beiteområder – sjekk lokalt.',
+      );
+    }
     if (estimatedLegs) {
       checks.add(
         'Ruten inneholder estimerte strekk – linjen er ikke et '

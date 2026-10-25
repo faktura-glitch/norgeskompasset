@@ -1,5 +1,16 @@
 import 'dart:math';
 
+/// Wind-chill temperature (Environment Canada / NWS formula, as used by
+/// Yr). Defined at or below 10 °C with wind ≥ 1.3 m/s; otherwise the
+/// air temperature is returned unchanged.
+double? feelsLikeC(double? tempC, double? windMs) {
+  if (tempC == null) return null;
+  if (windMs == null || tempC > 10 || windMs < 1.3) return tempC;
+  final v = windMs * 3.6;
+  final v16 = pow(v, 0.16).toDouble();
+  return 13.12 + 0.6215 * tempC - 11.37 * v16 + 0.3965 * tempC * v16;
+}
+
 /// One hourly forecast step, parsed from MET Norway Locationforecast.
 class WeatherHour {
   final DateTime time; // UTC
@@ -9,6 +20,8 @@ class WeatherHour {
   final double? windGust; // m/s
   final double? cloudCover; // percent
   final String? symbolCode;
+
+  double? get feelsLike => feelsLikeC(temperature, windSpeed);
 
   const WeatherHour({
     required this.time,

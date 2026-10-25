@@ -759,6 +759,13 @@ class _PeriodRow extends StatelessWidget {
     }
     final temps = hours.map((h) => h.temperature).whereType<double>();
     final wind = hours.map((h) => h.windSpeed).whereType<double>();
+    final feels = hours.map((h) => h.feelsLike).whereType<double>();
+    final tempMin = temps.isEmpty
+        ? null
+        : temps.reduce((a, b) => a < b ? a : b);
+    final feelsMin = feels.isEmpty
+        ? null
+        : feels.reduce((a, b) => a < b ? a : b);
     final precip = hours
         .map((h) => h.precipitationMm)
         .whereType<double>()
@@ -786,6 +793,19 @@ class _PeriodRow extends StatelessWidget {
                   Text(
                     '${fmtTemp(temps.reduce((a, b) => a < b ? a : b))} – ${fmtTemp(temps.reduce((a, b) => a > b ? a : b))}',
                     style: const TextStyle(fontSize: 12),
+                  ),
+                // Wind chill is what decides whether you freeze on the
+                // summit — shown only when it differs noticeably.
+                if (tempMin != null &&
+                    feelsMin != null &&
+                    feelsMin < tempMin - 1.5)
+                  Text(
+                    'føles som ${fmtTemp(feelsMin)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: NkColors.primaryBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 if (precip > 0.05)
                   Text(
