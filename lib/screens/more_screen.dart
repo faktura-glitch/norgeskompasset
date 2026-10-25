@@ -482,114 +482,147 @@ class _ProfileCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      section('Turstil'),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            chip(
-                              'Lett pakking (gramjeger)',
-                              lightPacker,
-                              (v) => lightPacker = v,
-                            ),
-                            chip(
-                              'Ekstra komfort',
-                              extraComfort,
-                              (v) => extraComfort = v,
-                            ),
-                            chip('Går med hund', withDog, (v) => withDog = v),
-                            chip('Fryser lett', cold, (v) => cold = v),
-                          ],
+                      // Optional tailoring stays behind a closed
+                      // section so the form opens with only Person
+                      // and Sikkerhet visible.
+                      Theme(
+                        data: Theme.of(ctx).copyWith(
+                          dividerColor: Colors.transparent,
                         ),
-                      ),
-                      section('Mat og kosthold'),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            chip('Vegetar', veg, (v) {
-                              veg = v;
-                              if (v) vegan = false;
-                            }),
-                            chip('Vegansk', vegan, (v) {
-                              vegan = v;
-                              if (v) veg = true;
-                            }),
-                            chip(
-                              'Glutenfri',
-                              glutenFree,
-                              (v) => glutenFree = v,
+                        child: ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          childrenPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'Mer tilpasning – turstil, kosthold og utstyr',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            chip(
-                              'Laktosefri',
-                              lactoseFree,
-                              (v) => lactoseFree = v,
-                            ),
-                            chip(
-                              'Nøtteallergi',
-                              nutAllergy,
-                              (v) => nutAllergy = v,
-                            ),
-                            chip(
-                              'Rehydrert turmat',
-                              prefersDehydrated,
-                              (v) => prefersDehydrated = v,
-                            ),
-                          ],
-                        ),
-                      ),
-                      section('Utstyr jeg eier'),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            chip('Eier telt', ownsTent, (v) => ownsTent = v),
-                            chip(
-                              'Eier brenner/kokeapparat',
-                              ownsStove,
-                              (v) => ownsStove = v,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Foretrukket sesong',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: NkColors.textSecondary,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
+                          subtitle: const Text(
+                            'Valgfritt – åpne for å tilpasse forslagene',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           children: [
-                            for (final s in TripSeason.values)
-                              chip(
-                                s.label,
-                                preferredSeason == s,
-                                (v) => preferredSeason = v ? s : null,
+                            section('Turstil'),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  chip(
+                                    'Lett pakking (gramjeger)',
+                                    lightPacker,
+                                    (v) => lightPacker = v,
+                                  ),
+                                  chip(
+                                    'Ekstra komfort',
+                                    extraComfort,
+                                    (v) => extraComfort = v,
+                                  ),
+                                  chip(
+                                    'Går med hund',
+                                    withDog,
+                                    (v) => withDog = v,
+                                  ),
+                                  chip('Fryser lett', cold, (v) => cold = v),
+                                ],
                               ),
+                            ),
+                            section('Mat og kosthold'),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  chip('Vegetar', veg, (v) {
+                                    veg = v;
+                                    if (v) vegan = false;
+                                  }),
+                                  chip('Vegansk', vegan, (v) {
+                                    vegan = v;
+                                    if (v) veg = true;
+                                  }),
+                                  chip(
+                                    'Glutenfri',
+                                    glutenFree,
+                                    (v) => glutenFree = v,
+                                  ),
+                                  chip(
+                                    'Laktosefri',
+                                    lactoseFree,
+                                    (v) => lactoseFree = v,
+                                  ),
+                                  chip(
+                                    'Nøtteallergi',
+                                    nutAllergy,
+                                    (v) => nutAllergy = v,
+                                  ),
+                                  chip(
+                                    'Rehydrert turmat',
+                                    prefersDehydrated,
+                                    (v) => prefersDehydrated = v,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            section('Utstyr jeg eier'),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  chip(
+                                    'Eier telt',
+                                    ownsTent,
+                                    (v) => ownsTent = v,
+                                  ),
+                                  chip(
+                                    'Eier brenner/kokeapparat',
+                                    ownsStove,
+                                    (v) => ownsStove = v,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Foretrukket sesong',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: NkColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  for (final s in TripSeason.values)
+                                    chip(
+                                      s.label,
+                                      preferredSeason == s,
+                                      (v) => preferredSeason = v ? s : null,
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              'Brukes som standard på nye turer',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: NkColors.textSecondary,
+                              ),
+                            ),
                           ],
-                        ),
-                      ),
-                      Text(
-                        'Brukes som standard på nye turer',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: NkColors.textSecondary,
                         ),
                       ),
                       section('Sikkerhet'),
