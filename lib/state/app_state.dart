@@ -446,8 +446,14 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       return;
     }
-    if (catalogLoaded && !force) return;
+    // Re-check the admin list on every load/refresh so a uid added in
+    // the console takes effect without restarting the app.
+    final wasAdmin = isAdmin;
     isAdmin = await repo.fetchIsAdmin();
+    if (catalogLoaded && !force) {
+      if (wasAdmin != isAdmin) notifyListeners();
+      return;
+    }
     // Admins also see entries hidden by reports, so they can review them.
     catalog = await repo.fetchCatalog(includeHidden: isAdmin);
     catalogLoaded = true;
