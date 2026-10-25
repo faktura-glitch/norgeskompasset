@@ -294,4 +294,22 @@ void main() {
       await expectLater(repo.syncFromCloud(), throwsA(anything));
     },
   );
+
+  test('account deletion can keep local trips in the guest store', () async {
+    await repo.setUser('alice');
+    await repo.saveTrip(Trip(id: 't1', name: 'Finse'), syncCloud: false);
+    await repo.saveProfile(UserProfile(name: 'Anne'));
+    await repo.migrateLocalDataToGuest();
+    await repo.setUser(null);
+    expect(repo.loadTrips().map((t) => t.name), contains('Finse'));
+    expect(repo.loadProfile().name, 'Anne');
+  });
+
+  test('account deletion can wipe local data entirely', () async {
+    await repo.setUser('alice');
+    await repo.saveTrip(Trip(id: 't1'), syncCloud: false);
+    await repo.clearLocalUserData();
+    expect(repo.loadTrips(), isEmpty);
+    expect(repo.pendingCount, 0);
+  });
 }

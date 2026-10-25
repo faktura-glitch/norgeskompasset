@@ -504,6 +504,65 @@ class TripRepository {
     } catch (_) {}
   }
 
+  // ── Account deletion ───────────────────────────────────────
+  /// Deletes every cloud document owned by the signed-in user:
+  /// users/{uid}/trips/*, the user doc itself, the user's shared
+  /// snapshots and catalog entries. Throws on failure so the caller
+  /// can abort before the auth account is removed — otherwise data
+  /// would be orphaned under a uid nobody can log in to.
+  Future<void> deleteAllCloudData() async {
+    final db = _db;
+    final uid = _uid;
+    if (db == null || uid == null) return;
+    final userDoc = db.collection('users').doc(uid);
+    final trips = await userDoc.collection('trips').get();
+    for (final doc in trips.docs) {
+      await doc.reference.delete();
+    }
+    await userDoc.delete();
+    // The sharedTrips rules allow get-by-id only, not listing — so
+    // delete the share codes this device knows (they sync with the
+    // trip data). Verify ownership before deleting.
+    for (final trip in loadTrips()) {
+      final code = trip.shareCode;
+      if (code == null) continue;
+      final ref = db.collection('sharedTrips').doc(code);
+      final doc = await ref.get();
+      if (doc.exists && doc.data()?['owner'] == uid) await ref.delete();
+    }
+    // Catalog entries are listable for signed-in users.
+    final owned = await db
+        .collection('catalogTrips')
+        .where('owner', isEqualTo: uid)
+        .get();
+    for (final doc in owned.docs) {
+      await doc.reference.delete();
+    }
+  }
+
+  /// Copies this user's local trips and profile into the guest store so
+  /// they keep working offline after the account is deleted.
+  Future<void> migrateLocalDataToGuest() async {
+    final trips = loadTrips();
+    final profile = loadProfile();
+    final guestTrips = await Hive.openBox<String>(_tripsBox);
+    await guestTrips.clear();
+    for (final t in trips) {
+      await guestTrips.put(t.id, t.encode());
+    }
+    await _settings?.put(_profileKey, profile.encode());
+  }
+
+  /// Wipes this user's local trips, sync queue, conflicts and profile.
+  /// Used when the user asks to delete everything.
+  Future<void> clearLocalUserData() async {
+    await _trips?.clear();
+    await _pending?.clear();
+    await _conflicts?.clear();
+    await _profileSettings?.clear();
+    cloudConflictIds.clear();
+  }
+
   static const _codeChars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
   String _newShareCode() {

@@ -20,6 +20,7 @@ import '../models/route_models.dart';
 import '../models/stage.dart';
 import '../models/track.dart';
 import '../models/trip.dart';
+import '../services/auth_service.dart';
 import '../services/elevation_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/gear_catalog.dart';
@@ -62,6 +63,35 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     if (value) await syncWithCloud(null);
     localOnly = value;
     await repo.saveLocalModePref(value);
+    notifyListeners();
+  }
+
+  /// Deletes the signed-in account and all of its cloud data
+  /// (Play Store/App Store requirement). [keepLocalTrips] controls
+  /// whether the trips on this device are moved to the local,
+  /// account-free store or wiped with everything else.
+  ///
+  /// Cloud cleanup runs first — if it throws, the auth account is
+  /// left untouched so nothing is orphaned. Firebase may answer
+  /// 'requires-recent-login'; reauthenticate via [AuthService] and
+  /// call this again.
+  Future<void> deleteAccount({required bool keepLocalTrips}) async {
+    await repo.deleteAllCloudData();
+    if (keepLocalTrips) {
+      await repo.migrateLocalDataToGuest();
+    } else {
+      await repo.clearLocalUserData();
+    }
+    await AuthService().deleteAccount();
+    // The account is gone — local mode must not suppress the login
+    // screen, and the trips in memory belong to the deleted user.
+    localOnly = false;
+    await repo.saveLocalModePref(false);
+    trips = [];
+    currentTripId = null;
+    profile = UserProfile();
+    catalog = const [];
+    catalogLoaded = false;
     notifyListeners();
   }
 

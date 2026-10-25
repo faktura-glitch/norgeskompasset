@@ -19,7 +19,7 @@ class AuthService {
           email: email.trim(), password: password);
       return cred.user;
     } on FirebaseAuthException catch (e) {
-      throw AuthException(_messageFor(e));
+      throw AuthException(_messageFor(e), e.code);
     }
   }
 
@@ -29,7 +29,7 @@ class AuthService {
           email: email.trim(), password: password);
       return cred.user;
     } on FirebaseAuthException catch (e) {
-      throw AuthException(_messageFor(e));
+      throw AuthException(_messageFor(e), e.code);
     }
   }
 
@@ -40,11 +40,44 @@ class AuthService {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
     } on FirebaseAuthException catch (e) {
-      throw AuthException(_messageFor(e));
+      throw AuthException(_messageFor(e), e.code);
     }
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  /// Re-authenticates the signed-in user with their password.
+  /// Required before sensitive actions such as account deletion.
+  Future<void> reauthenticate(String password) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      throw const AuthException('Du er ikke innlogget.');
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: password),
+      );
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_messageFor(e), e.code);
+    }
+  }
+
+  /// Deletes the Firebase account. Firebase may answer
+  /// 'requires-recent-login' — call [reauthenticate] and try again.
+  /// Cloud data is deleted by the caller first, so nothing is left
+  /// orphaned under the removed uid.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw const AuthException('Du er ikke innlogget.');
+    }
+    try {
+      await user.delete();
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_messageFor(e), e.code);
+    }
+  }
 
   String _messageFor(FirebaseAuthException e) => switch (e.code) {
         'invalid-email' => 'Ugyldig e-postadresse.',
@@ -62,6 +95,8 @@ class AuthService {
           'Nettverksfeil – sjekk tilkoblingen og prøv igjen.',
         'user-disabled' =>
           'Kontoen er deaktivert. Ta kontakt med support.',
+        'requires-recent-login' =>
+          'Av sikkerhetsgrunner må du skrive inn passordet på nytt.',
         _ =>
           'Pålogging feilet (${e.code}). Prøv igjen.',
       };
@@ -69,7 +104,8 @@ class AuthService {
 
 class AuthException implements Exception {
   final String message;
-  const AuthException(this.message);
+  final String? code;
+  const AuthException(this.message, [this.code]);
   @override
   String toString() => message;
 }

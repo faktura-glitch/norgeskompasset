@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../models/profile.dart';
 import '../models/trip.dart';
+import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
 import 'hiking_screen.dart';
@@ -263,7 +264,13 @@ class MoreScreen extends StatelessWidget {
                   appBar: AppBar(title: const Text('Data og personvern')),
                   body: const SingleChildScrollView(
                     padding: EdgeInsets.all(16),
-                    child: _DataSection(),
+                    child: Column(
+                      children: [
+                        _DataSection(),
+                        SizedBox(height: 12),
+                        _DeleteAccountCard(),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -845,6 +852,181 @@ class _DataSection extends StatelessWidget {
               fontStyle: FontStyle.italic,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Play Store and App Store require in-app account deletion. The cloud
+/// data goes first, then the Firebase account — if cloud deletion
+/// fails the account is left untouched so nothing is orphaned.
+class _DeleteAccountCard extends StatefulWidget {
+  const _DeleteAccountCard();
+
+  @override
+  State<_DeleteAccountCard> createState() => _DeleteAccountCardState();
+}
+
+class _DeleteAccountCardState extends State<_DeleteAccountCard> {
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    bool keepLocal = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Slett konto?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Kontoen din og alle dataene dine i skyen slettes for '
+                'godt: turer, delte turer og publiserte katalogturer. '
+                'Dette kan ikke angres.',
+              ),
+              CheckboxListTile(
+                value: keepLocal,
+                onChanged: (v) => setDlg(() => keepLocal = v ?? true),
+                title: const Text(
+                  'Behold turene på denne enheten',
+                  style: TextStyle(fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'De lagres lokalt, uten konto',
+                  style: TextStyle(fontSize: 12),
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Avbryt'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: NkColors.dangerRed,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Slett konto'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && mounted) await _runDelete(keepLocal);
+  }
+
+  Future<String?> _askPassword() async {
+    final ctrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bekreft med passord'),
+        content: TextField(
+          controller: ctrl,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Passord',
+            hintText: 'Skriv inn passordet ditt',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Avbryt'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Bekreft'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return result;
+  }
+
+  Future<void> _runDelete(bool keepLocal) async {
+    setState(() => _busy = true);
+    try {
+      await context.read<AppState>().deleteAccount(keepLocalTrips: keepLocal);
+      // On success the auth stream signs out and the app shows the
+      // login screen — nothing more to do here.
+    } on AuthException catch (e) {
+      if (e.code != 'requires-recent-login' || !mounted) rethrow;
+      final password = await _askPassword();
+      if (password != null && mounted) {
+        try {
+          await AuthService().reauthenticate(password);
+          if (mounted) {
+            await context.read<AppState>().deleteAccount(
+              keepLocalTrips: keepLocal,
+            );
+          }
+        } catch (e2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Kunne ikke slette kontoen: $e2')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Kunne ikke slette kontoen: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    User? user;
+    try {
+      user = FirebaseAuth.instance.currentUser;
+    } catch (_) {}
+    if (user == null) return const SizedBox.shrink();
+    return NkCard(
+      onTap: _busy ? null : _confirm,
+      child: Row(
+        children: [
+          Icon(Icons.delete_forever_outlined,
+              size: 18, color: NkColors.dangerRed),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Slett kontoen min',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: NkColors.dangerRed,
+              ),
+            ),
+          ),
+          if (_busy)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              Icons.chevron_right,
+              color: NkColors.textSecondary,
+              size: 18,
+            ),
         ],
       ),
     );
