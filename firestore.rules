@@ -42,8 +42,10 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data)
              .affectedKeys().hasOnly(['reportedBy'])
          && request.resource.data.reportedBy is list
+         && request.resource.data.reportedBy.hasAll(
+              'reportedBy' in resource.data ? resource.data.reportedBy : [])
          && request.resource.data.reportedBy.hasOnly(
-              resource.data.get('reportedBy', []) + [request.auth.uid]))
+              resource.data.get('reportedBy', []).concat([request.auth.uid])))
       );
     }
 
