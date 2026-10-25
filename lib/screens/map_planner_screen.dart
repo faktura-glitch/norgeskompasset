@@ -513,17 +513,18 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     );
     if (!mounted) return;
     if (identical(oldRoute, trip.route) || trip.route?.hasRoute != true) {
-      nkToast(context, state.lastError ?? 'Kunne ikke beregne ruten. Prøv igjen.');
+      nkToast(
+        context,
+        state.lastError ?? 'Kunne ikke beregne ruten. Prøv igjen.',
+      );
       return;
     }
     if (state.lastError != null) nkToast(context, state.lastError!);
     // The route was just computed - it is not out of date.
     setState(() => _routeDirty = false);
     if (trip.name.trim().isEmpty) {
-      await Future.wait(_nameLookups).timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => <void>[],
-      );
+      await Future.wait(_nameLookups)
+          .timeout(const Duration(seconds: 4), onTimeout: () => <void>[]);
       final name = suggestTripName(anchors);
       if (name.isNotEmpty) {
         trip.name = name;
@@ -535,10 +536,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     final pts = trip.route?.latLngs;
     if (pts != null && pts.length >= 2) {
       _mapCtrl.fitCamera(
-        CameraFit.coordinates(
-          coordinates: pts,
-          padding: _routeFitPadding,
-        ),
+        CameraFit.coordinates(coordinates: pts, padding: _routeFitPadding),
       );
     }
     await state.fetchElevation(trip);
@@ -607,8 +605,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       }
     } catch (_) {
       if (mounted && generation == _searchGeneration) {
-        setState(() => _searchError =
-            'Stedssøket er utilgjengelig. Sjekk nettet og prøv igjen.');
+        setState(
+          () => _searchError =
+              'Stedssøket er utilgjengelig. Sjekk nettet og prøv igjen.',
+        );
       }
     } finally {
       if (mounted && generation == _searchGeneration) {
@@ -898,6 +898,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         : const Icon(Icons.search, size: 20),
                     suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
+                            tooltip: 'TÃ¸m sÃ¸k',
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () {
                               _searchCtrl.clear();
@@ -1148,14 +1149,14 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       _mapCtrl.camera.center,
                       _mapCtrl.camera.zoom + 1,
                     );
-                  }),
+                  }, tooltip: 'Zoom inn'),
                   const SizedBox(height: 6),
                   _mapButton(Icons.remove, () {
                     _mapCtrl.move(
                       _mapCtrl.camera.center,
                       _mapCtrl.camera.zoom - 1,
                     );
-                  }),
+                  }, tooltip: 'Zoom ut'),
                   const SizedBox(height: 6),
                 ],
                 _mapButton(Icons.fit_screen, () async {
@@ -1168,7 +1169,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       ),
                     );
                   }
-                }),
+                }, tooltip: 'Vis hele ruten'),
                 const SizedBox(height: 6),
                 // Loop generator — a route from the start anchor and
                 // back. Second tap on the refresh icon rerolls a variant.
@@ -1196,7 +1197,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       _anchors.removeLast();
                       _routeDirty = true;
                     });
-                  }),
+                  }, tooltip: 'Angre siste punkt'),
                 ],
               ],
             ),
@@ -1262,30 +1263,36 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   Widget _mapButton(
     IconData icon,
     VoidCallback onTap, {
-    String? tooltip,
+    required String tooltip,
     bool active = false,
   }) {
-    return Material(
-      color: active
-          ? NkColors.primaryBlue.withValues(alpha: 0.12)
-          : Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
+    return Semantics(
+      button: true,
+      selected: active,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Material(
+        color: active
+            ? NkColors.primaryBlue.withValues(alpha: 0.12)
+            : Colors.white,
         borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Tooltip(
-          message: tooltip ?? '',
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: active ? NkColors.primaryBlue : NkColors.border,
-                width: active ? 1.5 : 1,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Tooltip(
+            message: tooltip,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: active ? NkColors.primaryBlue : NkColors.border,
+                  width: active ? 1.5 : 1,
+                ),
               ),
+              child: Icon(icon, size: 20, color: NkColors.primaryBlue),
             ),
-            child: Icon(icon, size: 20, color: NkColors.primaryBlue),
           ),
         ),
       ),
@@ -1752,6 +1759,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
+                    tooltip: 'FÃ¦rre dager',
                     icon: const Icon(Icons.remove_circle_outline),
                     onPressed: days > 1 ? () => setD(() => days--) : null,
                   ),
@@ -1763,6 +1771,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Flere dager',
                     icon: const Icon(Icons.add_circle_outline),
                     onPressed: days < 14 ? () => setD(() => days++) : null,
                   ),
@@ -2150,6 +2159,7 @@ class _TripConfigState extends State<_TripConfig> {
                   child: Row(
                     children: [
                       IconButton(
+                        tooltip: 'Ã‰n dag kortere',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                         onPressed: () async {
@@ -2173,6 +2183,7 @@ class _TripConfigState extends State<_TripConfig> {
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Ã‰n dag lengre',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.add_circle_outline, size: 20),
                         onPressed: () async {
@@ -2205,6 +2216,7 @@ class _TripConfigState extends State<_TripConfig> {
                   child: Row(
                     children: [
                       IconButton(
+                        tooltip: 'FÃ¦rre deltakere',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                         onPressed: () async {
@@ -2222,6 +2234,7 @@ class _TripConfigState extends State<_TripConfig> {
                         ),
                       ),
                       IconButton(
+                        tooltip: 'Flere deltakere',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.add_circle_outline, size: 20),
                         onPressed: () async {
@@ -2521,6 +2534,7 @@ class _WaypointRow extends StatelessWidget {
               },
             ),
           IconButton(
+            tooltip: 'Fjern punkt',
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.close, size: 17, color: NkColors.dangerRed),
             onPressed: onRemove,

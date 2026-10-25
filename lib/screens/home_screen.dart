@@ -248,11 +248,23 @@ class _UpcomingTripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final route = trip.route;
+    final hasRoute = route?.hasRoute == true;
+    final hasDates = trip.startDate != null;
     final packed =
-        route?.hasRoute == true &&
+        hasRoute &&
         trip.packingList.isNotEmpty &&
-        trip.packingCompletion >= 1 &&
         trip.missingRequiredCount == 0;
+    final active = trip.status == TripStatus.active;
+    // One obvious next step: Rute → Datoer → Pakking → Klar.
+    final (nextLabel, nextIcon) = active
+        ? ('Fortsett turen', Icons.navigation)
+        : !hasRoute
+        ? ('Planlegg rute', Icons.map_outlined)
+        : !hasDates
+        ? ('Sett datoer', Icons.calendar_today_outlined)
+        : !packed
+        ? ('Pakk sekken', Icons.backpack_outlined)
+        : ('Start tur', Icons.navigation);
     return NkCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -299,14 +311,23 @@ class _UpcomingTripCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+                _TripSteps(
+                  steps: [
+                    ('Rute', hasRoute),
+                    ('Datoer', hasRoute && hasDates),
+                    ('Pakking', packed && hasDates),
+                    ('Klar', active || (packed && hasDates)),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () {
                           context.read<AppState>().selectTrip(trip.id);
-                          if (trip.status == TripStatus.active || packed) {
+                          if (active || (packed && hasDates)) {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -315,25 +336,12 @@ class _UpcomingTripCard extends StatelessWidget {
                             );
                           } else {
                             context.read<NavController>().goTo(
-                              route?.hasRoute == true ? 3 : 2,
+                              hasRoute && hasDates ? 3 : 2,
                             );
                           }
                         },
-                        icon: Icon(
-                          trip.status == TripStatus.active
-                              ? Icons.navigation
-                              : Icons.edit_outlined,
-                          size: 18,
-                        ),
-                        label: Text(
-                          trip.status == TripStatus.active
-                              ? 'Fortsett turen'
-                              : packed
-                              ? 'Åpne turmodus'
-                              : route?.hasRoute == true
-                              ? 'Gjør klar'
-                              : 'Planlegg rute',
-                        ),
+                        icon: Icon(nextIcon, size: 18),
+                        label: Text(nextLabel),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -366,6 +374,55 @@ class _UpcomingTripCard extends StatelessWidget {
 
 /// Prominent "download map for offline use" action on the home trip
 /// card — the map must be cached *before* leaving coverage.
+/// Compact progress row for the planning steps, e.g. «Rute ✓ › Datoer».
+class _TripSteps extends StatelessWidget {
+  final List<(String, bool)> steps;
+  const _TripSteps({required this.steps});
+
+  @override
+  Widget build(BuildContext context) {
+    final done = steps.where((s) => s.$2).length;
+    return Semantics(
+      label: 'Steg $done av ${steps.length} fullført',
+      excludeSemantics: true,
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final (i, (label, ok)) in steps.indexed) ...[
+            if (i > 0)
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: NkColors.textSecondary,
+              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  ok ? Icons.check_circle : Icons.radio_button_unchecked,
+                  size: 16,
+                  color: ok ? NkColors.forestGreen : NkColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: ok ? FontWeight.w600 : FontWeight.w500,
+                    color: NkColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _OfflineMapButton extends StatelessWidget {
   final Trip trip;
   const _OfflineMapButton({required this.trip});
@@ -872,9 +929,10 @@ class _AlertsSection extends StatelessWidget {
               ),
             ),
           ),
-        for (final t in tasks
-            .where((t) => !active.take(3).any((r) => r.title == t))
-            .take(3))
+        for (final t
+            in tasks
+                .where((t) => !active.take(3).any((r) => r.title == t))
+                .take(3))
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(

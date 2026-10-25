@@ -291,6 +291,7 @@ class _HikingScreenState extends State<HikingScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: IconButton(
+                        tooltip: 'Tilbake',
                         icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () => Navigator.maybePop(context),
                       ),

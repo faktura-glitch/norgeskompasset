@@ -276,6 +276,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     ),
                     for (var i = 1; i <= 5; i++)
                       IconButton(
+                        tooltip: '$i av 5 stjerner',
                         visualDensity: VisualDensity.compact,
                         icon: Icon(
                           i <= _rating ? Icons.star : Icons.star_border,

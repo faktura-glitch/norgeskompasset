@@ -1289,6 +1289,7 @@ class _TemplatesSheet extends StatelessWidget {
                         child: const Text('Bruk'),
                       ),
                       IconButton(
+                        tooltip: 'Slett mal',
                         icon: const Icon(Icons.delete_outline, size: 18),
                         onPressed: () async {
                           await state.repo.deleteTemplate(t['name']);

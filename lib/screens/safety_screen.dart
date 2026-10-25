@@ -588,6 +588,7 @@ class _EmergencyCard extends StatelessWidget {
               ),
               subtitle: Text(desc, style: const TextStyle(fontSize: 11)),
               trailing: IconButton(
+                tooltip: 'Ring $num',
                 icon: const Icon(
                   Icons.phone_outlined,
                   color: NkColors.forestGreen,
