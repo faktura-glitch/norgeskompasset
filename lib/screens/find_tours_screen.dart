@@ -11,6 +11,7 @@ import '../services/map_display_settings.dart';
 import '../services/tile_cache.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
+import '../widgets/common.dart';
 import '../widgets/local_tour_suggestions.dart';
 
 class FindToursScreen extends StatefulWidget {
@@ -213,6 +214,14 @@ class _FindToursScreenState extends State<FindToursScreen> {
             ),
           ),
           actions: [
+            TextButton.icon(
+              icon: const Icon(Icons.flag_outlined, size: 16),
+              label: const Text('Rapporter'),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _reportEntry(entry);
+              },
+            ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Avbryt'),
@@ -252,6 +261,18 @@ class _FindToursScreenState extends State<FindToursScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _reportEntry(CatalogTrip entry) async {
+    final ok = await context.read<AppState>().reportCatalogEntry(entry);
+    if (!mounted) return;
+    nkToast(
+      context,
+      ok
+          ? 'Takk – turen er rapportert. Den skjules etter '
+                '${CatalogTrip.reportHideThreshold} rapporter.'
+          : 'Kunne ikke sende rapporten. Logg inn og prøv igjen.',
+    );
   }
 
   @override

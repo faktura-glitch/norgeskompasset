@@ -491,9 +491,33 @@ class TripRepository {
     if (catalog == null) return const [];
     try {
       final snap = await _serialize(() => catalog.get());
-      return [for (final d in snap.docs) CatalogTrip.fromJson(d.data())];
+      return [
+        for (final d in snap.docs)
+          if (CatalogTrip.fromJson(d.data()) case final e)
+            if (e.reportedBy.length < CatalogTrip.reportHideThreshold)
+              e,
+      ];
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// Adds the signed-in user's report to a catalog entry. Entries
+  /// reaching [CatalogTrip.reportHideThreshold] reports are hidden
+  /// from listings until reviewed.
+  Future<bool> reportCatalogEntry(String id) async {
+    final doc = _catalog?.doc(id);
+    final uid = _uid;
+    if (doc == null || uid == null) return false;
+    try {
+      await _serialize(
+        () => doc.update({
+          'reportedBy': FieldValue.arrayUnion([uid]),
+        }),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

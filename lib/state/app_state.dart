@@ -451,6 +451,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Reports a catalog entry as inappropriate or misleading.
+  Future<bool> reportCatalogEntry(CatalogTrip entry) async {
+    if (localOnly) return false;
+    final ok = await repo.reportCatalogEntry(entry.id);
+    final uid = _syncedUid;
+    if (ok && uid != null && !entry.reportedBy.contains(uid)) {
+      entry.reportedBy.add(uid);
+      notifyListeners();
+    }
+    return ok;
+  }
+
   /// Publishes [trip]'s route as a catalog entry. Returns null when
   /// the trip has no route or the write fails.
   Future<bool> publishTripToCatalog(

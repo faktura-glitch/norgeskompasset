@@ -24,6 +24,14 @@ class CatalogTrip {
   String ownerUid;
   DateTime updatedAt;
 
+  /// Uids of users who reported this entry as inappropriate or
+  /// misleading. Entries reaching [reportHideThreshold] reports are
+  /// hidden from the catalog until reviewed.
+  List<String> reportedBy;
+
+  /// Reports needed before an entry is hidden from listings.
+  static const reportHideThreshold = 3;
+
   CatalogTrip({
     required this.id,
     required this.ownerUid,
@@ -37,8 +45,10 @@ class CatalogTrip {
     this.accommodation = AccommodationType.dayHike,
     this.activity = TripActivity.foot,
     this.durationDays = 1,
+    List<String>? reportedBy,
     DateTime? updatedAt,
-  }) : updatedAt = updatedAt ?? DateTime.now();
+  }) : reportedBy = reportedBy ?? [],
+       updatedAt = updatedAt ?? DateTime.now();
 
   /// Whether the tour is relevant for [season] and suitable for
   /// [level] — ordering: novice < intermediate < experienced.
@@ -61,6 +71,7 @@ class CatalogTrip {
     'activity': activity.name,
     'durationDays': durationDays,
     'owner': ownerUid,
+    'reportedBy': reportedBy,
     'updatedAt': updatedAt.toIso8601String(),
   };
 
@@ -87,6 +98,9 @@ class CatalogTrip {
     durationDays: ((j['durationDays'] as num?)?.toInt() ?? 1)
         .clamp(1, 14)
         .toInt(),
+    reportedBy: (j['reportedBy'] as List? ?? [])
+        .map((e) => e.toString())
+        .toList(),
     updatedAt: j['updatedAt'] != null
         ? DateTime.tryParse(j['updatedAt']) ?? DateTime.now()
         : DateTime.now(),
