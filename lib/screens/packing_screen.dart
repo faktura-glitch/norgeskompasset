@@ -698,15 +698,16 @@ class _Header extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${(weightProgress * 100).round()} % av vekten pakket',
+                            '${packItems.where((i) => i.packed).length} av ${packItems.length} pakket',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 16,
                             ),
                           ),
                           Text(
-                            '${fmtWeight(totalGrams - packedGrams)} igjen i sekken'
-                            '${trip.missingRequiredCount > 0 ? '  ·  ${trip.missingRequiredCount} nødvendige!' : ''}',
+                            trip.missingRequiredCount > 0
+                                ? '${fmtCount(trip.missingRequiredCount, 'nødvendig ting', 'nødvendige ting')} mangler  ·  ${fmtWeight(totalGrams - packedGrams)} igjen'
+                                : '${fmtWeight(totalGrams - packedGrams)} igjen i sekken',
                             style: TextStyle(
                               fontSize: 11,
                               color: trip.missingRequiredCount > 0
@@ -714,24 +715,35 @@ class _Header extends StatelessWidget {
                                   : NkColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Grunnvekt: ${fmtWeight(equipment)}'
-                            '  ·  Startvekt: ${fmtWeight(equipment + consumables)}'
-                            '${worn > 0 ? '  ·  På kroppen: ${fmtWeight(worn)}' : ''}'
-                            '${food > 0 || consumables > food + water ? '  ·  (forbruksvarer ${fmtWeight(consumables)}${food > 0 ? ', herav mat ${fmtWeight(food)}' : ''}${water > 0 ? ' + vann ${fmtWeight(water)}' : ''})' : ''}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: NkColors.textSecondary,
+                          ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding: const EdgeInsets.only(bottom: 4),
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            shape: const Border(),
+                            collapsedShape: const Border(),
+                            expandedCrossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            title: Text(
+                              'Total bærevekt (estimert): ${fmtWeight(equipment + consumables + worn)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: NkColors.primaryBlue,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Total bærevekt (estimert): ${fmtWeight(equipment + consumables + worn)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: NkColors.primaryBlue,
-                            ),
+                            children: [
+                              Text(
+                                'Grunnvekt: ${fmtWeight(equipment)}'
+                                '  ·  Startvekt: ${fmtWeight(equipment + consumables)}'
+                                '${worn > 0 ? '  ·  På kroppen: ${fmtWeight(worn)}' : ''}'
+                                '${food > 0 || consumables > food + water ? '  ·  (forbruksvarer ${fmtWeight(consumables)}${food > 0 ? ', herav mat ${fmtWeight(food)}' : ''}${water > 0 ? ' + vann ${fmtWeight(water)}' : ''})' : ''}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: NkColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
