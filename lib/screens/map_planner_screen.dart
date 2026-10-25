@@ -457,14 +457,32 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         .read<AppState>()
         .geocodingService
         .reverse(w.latLng)
-        .then((name) {
+        .then((name) async {
           if (!mounted || name == null) return;
           if (w.name != fallback || w.lat != lat || w.lon != lon) return;
           setState(() => w.name = name);
+          await _persistLateName(w);
         })
         .catchError((Object _) {})
         .whenComplete(() => _nameLookups.remove(job));
     _nameLookups.add(job);
+  }
+
+  /// A place name that arrives after the route was saved must still be
+  /// stored, and can still give an unnamed trip its name.
+  Future<void> _persistLateName(Waypoint w) async {
+    final trip = _trip;
+    final waypoints = trip?.route?.waypoints;
+    if (trip == null ||
+        waypoints == null ||
+        !waypoints.any((x) => identical(x, w))) {
+      return;
+    }
+    if (trip.name.trim().isEmpty) {
+      final suggested = suggestTripName(waypoints);
+      if (suggested.isNotEmpty) trip.name = suggested;
+    }
+    await context.read<AppState>().saveTrip(trip);
   }
 
   void _insertWaypoint(
