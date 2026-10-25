@@ -158,6 +158,10 @@ class Trip {
   String name;
   DateTime? startDate;
   DateTime? endDate;
+
+  /// When the user told someone they'd be back. The hiking screen
+  /// warns once this time has passed while tracking is active.
+  DateTime? expectedReturn;
   TripStatus status;
   AccommodationType accommodation;
   TripSeason season;
@@ -210,6 +214,7 @@ class Trip {
     this.name = '',
     this.startDate,
     this.endDate,
+    this.expectedReturn,
     this.status = TripStatus.draft,
     this.accommodation = AccommodationType.dayHike,
     this.season = TripSeason.summer,
@@ -282,6 +287,7 @@ class Trip {
     'name': name,
     'startDate': startDate?.toIso8601String(),
     'endDate': endDate?.toIso8601String(),
+    'expectedReturn': expectedReturn?.toIso8601String(),
     'status': status.name,
     'accommodation': accommodation.name,
     'season': season.name,
@@ -316,6 +322,9 @@ class Trip {
         ? DateTime.tryParse(j['startDate'])
         : null,
     endDate: j['endDate'] != null ? DateTime.tryParse(j['endDate']) : null,
+    expectedReturn: j['expectedReturn'] != null
+        ? DateTime.tryParse(j['expectedReturn'])
+        : null,
     status: TripStatus.values.asNameMap()[j['status']] ?? TripStatus.draft,
     accommodation:
         AccommodationType.values.asNameMap()[j['accommodation']] ??
@@ -397,6 +406,8 @@ class Trip {
     'name': name,
     'start': startDate?.toIso8601String(),
     'end': endDate?.toIso8601String(),
+    if (expectedReturn != null)
+      'expRet': expectedReturn!.toIso8601String(),
     'status': status.name,
     'accom': accommodation.name,
     'season': season.name,
@@ -428,6 +439,9 @@ class Trip {
       name: j['name'] as String? ?? '',
       startDate: j['start'] != null ? DateTime.tryParse(j['start']) : null,
       endDate: j['end'] != null ? DateTime.tryParse(j['end']) : null,
+      expectedReturn: j['expRet'] != null
+          ? DateTime.tryParse(j['expRet'])
+          : null,
       status: TripStatus.values.asNameMap()[j['status']] ?? TripStatus.draft,
       accommodation:
           AccommodationType.values.asNameMap()[j['accom']] ??

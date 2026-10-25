@@ -432,6 +432,36 @@ class _HikingScreenState extends State<HikingScreen> {
                         ),
                       ),
                     if (_tracking &&
+                        trip.expectedReturn != null &&
+                        DateTime.now().isAfter(trip.expectedReturn!))
+                      Container(
+                        width: double.infinity,
+                        color: NkColors.dangerRed,
+                        padding: const EdgeInsets.all(10),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.alarm,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Du sa du skulle være hjemme innen '
+                                '${fmtDateTime(trip.expectedReturn!)} – '
+                                'gi beskjed til nødkontakten din.',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_tracking &&
                         trip.route?.hasRoute == true &&
                         trip.route?.supportsDeviationAlerts != true)
                       Container(

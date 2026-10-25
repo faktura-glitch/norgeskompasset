@@ -2012,6 +2012,38 @@ class _TripConfigState extends State<_TripConfig> {
     await state.reanalyze(trip, datesChanged: true);
   }
 
+  Future<void> _pickExpectedReturn() async {
+    final trip = widget.trip;
+    final state = context.read<AppState>();
+    final day = await showDatePicker(
+      context: context,
+      initialDate:
+          trip.expectedReturn ?? trip.endDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 540)),
+      helpText: 'Hjemme senest – dato',
+    );
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        trip.expectedReturn ?? day.add(const Duration(hours: 18)),
+      ),
+      helpText: 'Hjemme senest – klokkeslett',
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      trip.expectedReturn = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        time.hour,
+        time.minute,
+      );
+    });
+    await state.saveTrip(trip);
+  }
+
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
@@ -2048,6 +2080,26 @@ class _TripConfigState extends State<_TripConfig> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _DateField(
+            label: 'Hjemme senest (valgfritt)',
+            date: trip.expectedReturn,
+            text: trip.expectedReturn == null
+                ? 'Ikke satt'
+                : fmtDateTime(trip.expectedReturn!),
+            onTap: _pickExpectedReturn,
+          ),
+          if (trip.expectedReturn != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  setState(() => trip.expectedReturn = null);
+                  state.saveTrip(trip);
+                },
+                child: const Text('Fjern'),
+              ),
+            ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -2331,10 +2383,12 @@ class _TripConfigState extends State<_TripConfig> {
 class _DateField extends StatelessWidget {
   final String label;
   final DateTime? date;
+  final String? text;
   final VoidCallback onTap;
   const _DateField({
     required this.label,
     required this.date,
+    this.text,
     required this.onTap,
   });
 
@@ -2349,7 +2403,7 @@ class _DateField extends StatelessWidget {
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
         ),
         child: Text(
-          fmtDate(date),
+          text ?? fmtDate(date),
           style: TextStyle(
             fontSize: 13,
             color: date == null ? NkColors.textSecondary : NkColors.textPrimary,
