@@ -1189,6 +1189,55 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     dogOnly: true,
     reason: 'Hunden trenger like mye ekstra energi som deg',
   ),
+  // ── Kayak extras (the canoe kit applies via CarryMode.kayak) ──
+  GearItem(
+    'spraydeck',
+    'Spruttrekk',
+    PackingCategory.additional,
+    500,
+    perPerson: true,
+    priority: PackingPriority.required,
+    extra: (c) => c.carry == CarryMode.kayak,
+    reason: 'Holder vann ute av cockpiten i bølger og regn',
+  ),
+  GearItem(
+    'bilgepump',
+    'Lensepumpe og padleflyte',
+    PackingCategory.safetyFirstAid,
+    600,
+    priority: PackingPriority.required,
+    extra: (c) => c.carry == CarryMode.kayak,
+    reason: 'Egenredning etter velt – øv på det før turen',
+  ),
+  // ── Children in the group ─────────────────────────────────
+  GearItem(
+    'kidclothes',
+    'Ekstra skift til barn',
+    PackingCategory.clothing,
+    600,
+    priority: PackingPriority.required,
+    qtyFn: (c) => c.children.toDouble(),
+    extra: (c) => c.children > 0,
+    reason: 'Barn blir fortere kalde og våte – ett ekstra skift per barn',
+  ),
+  GearItem(
+    'kidsnacks',
+    'Snacks og drikke til barn',
+    PackingCategory.foodKitchen,
+    300,
+    consumable: true,
+    qtyFn: (c) => (c.children * c.days).toDouble(),
+    extra: (c) => c.children > 0,
+    reason: 'Hyppige små pauser med mat holder humøret oppe',
+  ),
+  GearItem(
+    'kidfun',
+    'Lek/aktivitet til pausene',
+    PackingCategory.additional,
+    200,
+    extra: (c) => c.children > 0 && c.overnight,
+    reason: 'Kort, ball eller bok gjør leir og regnvær lettere',
+  ),
 ]);
 
 /// Pre-selected filter combinations surfaced in the UI. A preset only

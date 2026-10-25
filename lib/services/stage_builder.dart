@@ -52,6 +52,7 @@ abstract final class StageBuilder {
           stats.descent,
           trip.pace,
           activity: trip.activity,
+          withChildren: trip.children > 0,
         ),
         startName: i == 0
             ? (route.waypoints.isNotEmpty

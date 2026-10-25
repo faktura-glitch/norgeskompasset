@@ -1538,6 +1538,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   : fmtDate(trip.startDate),
               fmtCount(trip.hikingDays, 'dag', 'dager'),
               fmtCount(trip.participants, 'person', 'personer'),
+              if (trip.children > 0) '${trip.children} barn',
               if (trip.withDog ?? context.read<AppState>().profile.withDog)
                 'Hund',
             ])
@@ -2429,13 +2430,13 @@ void _applyActivity(Trip trip, TripActivity v) {
   switch (v) {
     case TripActivity.ski:
       if (trip.season == TripSeason.summer) trip.season = TripSeason.winter;
-      if (trip.carry == CarryMode.canoe) trip.carry = CarryMode.backpack;
+      if (trip.carry.isPaddle) trip.carry = CarryMode.backpack;
     case TripActivity.paddle:
-      // Paddling requires open water.
-      trip.carry = CarryMode.canoe;
+      // Paddling requires open water; keep a kayak if already chosen.
+      if (!trip.carry.isPaddle) trip.carry = CarryMode.canoe;
       if (trip.season == TripSeason.winter) trip.season = TripSeason.summer;
     default:
-      if (trip.carry == CarryMode.canoe) trip.carry = CarryMode.backpack;
+      if (trip.carry.isPaddle) trip.carry = CarryMode.backpack;
   }
 }
 
@@ -2453,6 +2454,8 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late TripActivity _activity = widget.trip.activity;
   late AccommodationType _accommodation = widget.trip.accommodation;
   late int _people = widget.trip.participants;
+  late int _children = widget.trip.children;
+  late CarryMode _carry = widget.trip.carry;
   late bool _dog = widget.trip.withDog ?? widget.dogDefault;
   late bool? _terrain = widget.trip.avalancheTerrain;
   late DateTime? _start = widget.trip.startDate;
@@ -2496,8 +2499,10 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
     if (_start != null) _applyDates(t, _start!, _days);
     _applyActivity(t, _activity);
     if (_activity == TripActivity.ski) t.avalancheTerrain = _terrain;
+    if (_activity == TripActivity.paddle && _carry.isPaddle) t.carry = _carry;
     t.accommodation = _accommodation;
     t.participants = _people;
+    t.children = _children.clamp(0, _people);
     // Only pin the dog choice when it differs from the profile.
     if (t.withDog != null || _dog != widget.dogDefault) t.withDog = _dog;
     Navigator.pop(context, true);
@@ -2528,6 +2533,14 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               _activity,
               (v) => _activity = v,
             ),
+            if (_activity == TripActivity.paddle) ...[
+              _question('Kano eller kajakk?'),
+              _choices<CarryMode>(
+                const [(CarryMode.canoe, 'Kano'), (CarryMode.kayak, 'Kajakk')],
+                _carry.isPaddle ? _carry : CarryMode.canoe,
+                (v) => _carry = v,
+              ),
+            ],
             if (_activity == TripActivity.ski) ...[
               _question('Går turen i skredterreng?'),
               _choices<bool?>(
@@ -2607,6 +2620,25 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: _people < 20
                       ? () => setState(() => _people++)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  tooltip: 'Færre barn',
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: _children > 0
+                      ? () => setState(() => _children--)
+                      : null,
+                ),
+                Text(
+                  '$_children barn',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                IconButton(
+                  tooltip: 'Flere barn',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: _children < _people - 1
+                      ? () => setState(() => _children++)
                       : null,
                 ),
                 const Spacer(),

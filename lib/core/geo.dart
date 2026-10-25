@@ -95,6 +95,7 @@ double estimateHikingMinutes(
   double descentMeters,
   HikingPace pace, {
   TripActivity activity = TripActivity.foot,
+  bool withChildren = false,
 }) {
   final km = distanceMeters / 1000;
   final (kmh, minPer100m) = switch (activity) {
@@ -112,7 +113,9 @@ double estimateHikingMinutes(
       minutes += descentMeters / 100 * 2;
     }
   }
-  return minutes * pace.timeFactor;
+  // Groups with children stop more and walk shorter steps — roughly a
+  // third slower than the adult pace.
+  return minutes * pace.timeFactor * (withChildren ? 1.3 : 1.0);
 }
 
 /// Splits [points] into [count] stages of roughly equal distance.

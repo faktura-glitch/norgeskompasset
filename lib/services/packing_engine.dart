@@ -67,6 +67,7 @@ class PackingEngine {
       season: trip.season,
       days: trip.hikingDays,
       people: trip.participants.clamp(1, 20),
+      children: trip.children.clamp(0, 20),
       minTemp: minTemp,
       rain: rain,
       strongWind: wind,

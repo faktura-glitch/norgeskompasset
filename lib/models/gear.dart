@@ -27,6 +27,9 @@ class TripConditions {
   final int days;
   final int people;
 
+  /// Children within [people] — adds spare clothes and snacks.
+  final int children;
+
   /// Lowest expected temperature, or null when no forecast exists.
   /// Unknown is NEVER treated as warm: items gated on cold keep being
   /// suggested, warm-only extras are left out.
@@ -52,6 +55,7 @@ class TripConditions {
     required this.season,
     required this.days,
     required this.people,
+    this.children = 0,
     this.minTemp,
     this.rain = false,
     this.strongWind = false,
@@ -192,8 +196,17 @@ class GearItem {
       return false;
     }
     if (excludeActivities.contains(c.activity)) return false;
-    if (carryModes.isNotEmpty && !carryModes.contains(c.carry)) return false;
-    if (excludeCarry.contains(c.carry)) return false;
+    // A kayak carries the canoe kit (dry bags, vest, spare paddle) and
+    // adds its own items via [extra]; rules written for canoe apply.
+    final carry = c.carry == CarryMode.kayak ? CarryMode.canoe : c.carry;
+    if (carryModes.isNotEmpty &&
+        !carryModes.contains(carry) &&
+        !carryModes.contains(c.carry)) {
+      return false;
+    }
+    if (excludeCarry.contains(carry) || excludeCarry.contains(c.carry)) {
+      return false;
+    }
     // A mixed trip (tent some nights, cabin others) needs both kits.
     if (accommodation.isNotEmpty &&
         !accommodation.contains(c.accommodation) &&

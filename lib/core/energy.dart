@@ -130,6 +130,7 @@ EnergyEstimate estimateDailyKcal(
         desc,
         trip.pace,
         activity: trip.activity,
+        withChildren: trip.children > 0,
       ),
     ));
   }

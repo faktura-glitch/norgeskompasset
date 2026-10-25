@@ -50,14 +50,19 @@ extension TripSeasonX on TripSeason {
 
 /// How the group carries its gear — a sled (pulk) or a canoe changes
 /// packing fundamentally (dry bags, spare paddle, life vests).
-enum CarryMode { backpack, pulk, canoe }
+enum CarryMode { backpack, pulk, canoe, kayak }
 
 extension CarryModeX on CarryMode {
   String get label => switch (this) {
     CarryMode.backpack => 'Sekk',
     CarryMode.pulk => 'Pulk',
-    CarryMode.canoe => 'Kano/kajakk',
+    CarryMode.canoe => 'Kano',
+    CarryMode.kayak => 'Kajakk',
   };
+
+  /// Canoe and kayak share the paddling kit (dry bags, vest, spare
+  /// paddle); kayak adds its own items on top.
+  bool get isPaddle => this == CarryMode.canoe || this == CarryMode.kayak;
 }
 
 /// How the group moves — on foot, skis, bike or paddle. The choice
@@ -70,7 +75,7 @@ extension TripActivityX on TripActivity {
     TripActivity.foot => 'Fottur',
     TripActivity.ski => 'Ski',
     TripActivity.bike => 'Sykkel',
-    TripActivity.paddle => 'Kano/padling',
+    TripActivity.paddle => 'Padling',
   };
 }
 
@@ -173,6 +178,10 @@ class Trip {
 
   /// Dog on this trip; null follows the profile setting.
   bool? withDog;
+
+  /// Children in the group (counted within [participants]). Slows the
+  /// pace and adds spare clothes/snacks to the packing list.
+  int children;
   String notes;
   String? localTourId;
   HikingRoute? route;
@@ -227,6 +236,7 @@ class Trip {
     this.activity = TripActivity.foot,
     this.participants = 1,
     this.withDog,
+    this.children = 0,
     this.notes = '',
     this.localTourId,
     this.route,
@@ -302,6 +312,7 @@ class Trip {
     'activity': activity.name,
     'participants': participants,
     if (withDog != null) 'withDog': withDog,
+    if (children > 0) 'children': children,
     'notes': notes,
     if (localTourId != null) 'localTourId': localTourId,
     'route': route?.toJson(),
@@ -343,6 +354,7 @@ class Trip {
         TripActivity.values.asNameMap()[j['activity']] ?? TripActivity.foot,
     participants: j['participants'] as int? ?? 1,
     withDog: j['withDog'] as bool?,
+    children: j['children'] as int? ?? 0,
     notes: j['notes'] as String? ?? '',
     localTourId: j['localTourId'] as String?,
     route: j['route'] != null
@@ -423,6 +435,7 @@ class Trip {
     'act': activity.name,
     'part': participants,
     if (withDog != null) 'dog': withDog,
+    if (children > 0) 'kids': children,
     if (notes.isNotEmpty) 'notes': notes,
     if (localTourId != null) 'localTour': localTourId,
     if (route != null) 'route': route!.toCompactJson(),
@@ -460,6 +473,7 @@ class Trip {
       activity: TripActivity.values.asNameMap()[j['act']] ?? TripActivity.foot,
       participants: j['part'] as int? ?? 1,
       withDog: j['dog'] as bool?,
+      children: j['kids'] as int? ?? 0,
       notes: j['notes'] as String? ?? '',
       localTourId: j['localTour'] as String?,
       route: j['route'] != null

@@ -64,6 +64,31 @@ void main() {
     expect(_ids(trip), containsAll(['tent', 'hutsheet', 'hutkey']));
   });
 
+  test('kayak gets the canoe kit plus kayak extras', () {
+    final trip = _tent(TripSeason.summer)
+      ..activity = TripActivity.paddle
+      ..carry = CarryMode.kayak;
+    final ids = _ids(trip);
+    expect(ids, containsAll(['spraydeck', 'bilgepump']));
+    // Items declared for canoe still apply to a kayak.
+    final canoe = _ids(
+      _tent(TripSeason.summer)
+        ..activity = TripActivity.paddle
+        ..carry = CarryMode.canoe,
+    );
+    final canoeOnly = canoe.where((id) => !ids.contains(id)).toList();
+    expect(canoeOnly, isEmpty);
+  });
+
+  test('children add spare clothes and snacks, scaled per child', () {
+    final trip = _tent(TripSeason.summer, people: 3)..children = 2;
+    final items = _gen(trip);
+    expect(items.firstWhere((i) => i.id == 'kidclothes').quantity, 2);
+    expect(items.any((i) => i.id == 'kidsnacks'), isTrue);
+    expect(_ids(_tent(TripSeason.summer)), isNot(contains('kidclothes')));
+    expect(Trip.fromJson(trip.toJson()).children, 2);
+  });
+
   test('trip-level dog choice overrides the profile', () {
     final trip = _tent(TripSeason.summer);
     final engine = PackingEngine();
