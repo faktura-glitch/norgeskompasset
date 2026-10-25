@@ -72,13 +72,6 @@ class _AnalysisBody extends StatelessWidget {
           '${trip.activity.label} · tid er et estimat; legg til pauser og margin for forholdene.',
         ),
         const SizedBox(height: 12),
-        ScreenBanner(
-          url: NkImages.jotunheimen,
-          title: 'Høydeprofil og turanalyse',
-          subtitle:
-              'for «${trip.name.isEmpty ? 'Tur uten navn' : trip.name}» — stigning, etapper og vanskelighetsgrad',
-        ),
-        const SizedBox(height: 12),
         SectionHeader(
           trip.name.isEmpty ? 'Turanalyse' : trip.name,
           icon: Icons.insights,
@@ -453,9 +446,13 @@ class _OverallStats extends StatelessWidget {
             icon: Icons.summarize_outlined,
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 24,
-            runSpacing: 12,
+          GridView.count(
+            crossAxisCount: context.isWide ? 6 : 3,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.1,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
             children: [
               InfoTile(
                 'Distanse',
@@ -469,7 +466,7 @@ class _OverallStats extends StatelessWidget {
               ),
               InfoTile(
                 'Nedstigning',
-                '-${route.totalDescent.round()} m',
+                '−${route.totalDescent.round()} m',
                 icon: Icons.trending_down,
               ),
               InfoTile(

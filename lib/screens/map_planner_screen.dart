@@ -674,10 +674,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         child: LayoutBuilder(
           builder: (_, constraints) => Stack(
             children: [
-              Positioned.fill(bottom: constraints.maxHeight * 0.28, child: map),
+              Positioned.fill(bottom: constraints.maxHeight * 0.22, child: map),
               DraggableScrollableSheet(
-                initialChildSize: 0.28,
-                minChildSize: 0.28,
+                initialChildSize: 0.22,
+                minChildSize: 0.22,
                 maxChildSize: 0.86,
                 builder: (_, controller) => Material(
                   elevation: 8,
@@ -1304,8 +1304,13 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             'Start en ny tur',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
           ),
-          const Text(
-            'Velg start og mål i kartet. Turen lagres først når du trykker «Generer tur».',
+          Text(
+            !_hasType(WaypointType.start)
+                ? '1. Trykk i kartet eller søk etter et sted for å velge start.'
+                : !_hasType(WaypointType.end)
+                ? '2. Trykk i kartet der turen skal ende.'
+                : '3. Klar! Trykk «Generer tur» for å beregne ruten.',
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           FilledButton.icon(
             onPressed: _anchors.length >= 2 && !context.read<AppState>().busy

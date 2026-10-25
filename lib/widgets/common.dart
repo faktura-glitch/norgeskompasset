@@ -52,11 +52,19 @@ Widget tripScreenTitle(String screen, Trip? trip) {
   return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Text(screen, style: const TextStyle(fontSize: 17)),
     if (trip != null)
-      Text(
+      // Follows the app bar's text colour so the subtitle stays readable
+      // on the dark blue bar.
+      Builder(
+        builder: (context) => Text(
           trip.name.isEmpty ? 'Tur uten navn' : trip.name,
           style: TextStyle(
-              fontSize: 11, color: NkColors.textSecondary),
-          overflow: TextOverflow.ellipsis),
+            fontSize: 12,
+            color: (DefaultTextStyle.of(context).style.color ?? Colors.white)
+                .withValues(alpha: 0.85),
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
   ]);
 }
 

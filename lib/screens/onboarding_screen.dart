@@ -22,34 +22,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       icon: Icons.map_outlined,
       title: 'Planlegg ruten',
       text:
-          'Legg rute direkte på kartet, søk etter steder i Norge, '
-          'eller importer en GPX-fil. Du får distanse, stigning, '
-          'etapper og tidsestimat – og appen skiller ærlig mellom '
-          'stier og estimerte strekk.',
+          'Søk etter et sted eller trykk i kartet. Du får distanse, '
+          'stigning og tidsestimat.',
     ),
     (
       icon: Icons.backpack_outlined,
       title: 'Gjør deg klar',
       text:
-          'Velg sesong, bæring (sekk, pulk eller kano) og overnatting. '
-          'Pakkeliste, matplan og kaloribehov skaleres etter deltakere, '
-          'dager og din egen profil. Last ned offline kart før avreise.',
+          'Få pakkeliste og matplan tilpasset turen, og last ned kart '
+          'for bruk uten dekning.',
     ),
     (
       icon: Icons.navigation_outlined,
       title: 'Gå tur trygt',
       text:
-          'Følg vær- og skredvarsler fra MET og Varsom, del turkortet '
-          'med en kontakt, og bruk aktiv tur-modus med GPS-sporing og '
-          'varsel hvis du kommer ut av ruten.',
+          'Se vær- og skredvarsel, del turplanen med noen hjemme, og '
+          'få varsel hvis du kommer ut av ruten.',
     ),
     (
       icon: Icons.school_outlined,
       title: 'Lær av turen',
       text:
-          'Evaluer turen etterpå – det som fungerte, det som manglet. '
-          'Erfaringene dine gjør neste pakkeliste og anbefalingene '
-          'enda bedre.',
+          'Noter hva som fungerte, så blir neste tur enda bedre.',
     ),
   ];
 
