@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -23,6 +25,22 @@ Future<void> main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       firebaseReady = true;
+      // Crashlytics: send fatal Flutter and platform errors. It is a
+      // no-op on platforms the plugin doesn't support (Windows/web).
+      try {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(
+            error,
+            stack,
+            fatal: true,
+          );
+          return true;
+        };
+      } catch (_) {
+        // Crash reporting is best-effort; never block startup.
+      }
     } catch (_) {
       firebaseReady = false; // surface honest error on login screen
     }
