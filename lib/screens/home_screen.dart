@@ -9,6 +9,7 @@ import '../services/trip_analysis.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
+import '../widgets/trip_details_sheet.dart';
 import 'elevation_screen.dart';
 import 'meals_screen.dart';
 import 'hiking_screen.dart';
@@ -291,6 +292,12 @@ class _UpcomingTripCard extends StatelessWidget {
                       ),
                     ),
                     StatusPill(trip.status.label, NkColors.primaryBlue),
+                    IconButton(
+                      tooltip: 'Navn, notater og hjemme senest',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      onPressed: () => showTripDetailsSheet(context, trip),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -302,6 +309,11 @@ class _UpcomingTripCard extends StatelessWidget {
                       Icons.calendar_today_outlined,
                       '${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)}',
                     ),
+                    if (trip.expectedReturn != null)
+                      _IconText(
+                        Icons.home_outlined,
+                        'Hjemme senest ${fmtDateTime(trip.expectedReturn!)}',
+                      ),
                     _IconText(
                       Icons.schedule,
                       fmtCount(trip.hikingDays, 'dag', 'dager'),

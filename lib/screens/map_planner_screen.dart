@@ -26,6 +26,7 @@ import '../services/weather_service.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
+import '../widgets/trip_details_sheet.dart';
 import 'elevation_screen.dart';
 
 /// Kartverket topo tiles (free) with OSM fallback.
@@ -1234,34 +1235,88 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   }
                 }, tooltip: 'Vis hele ruten'),
                 const SizedBox(height: 6),
-                // Loop generator — a route from the start anchor and
-                // back. Second tap on the refresh icon rerolls a variant.
-                if (_showAdvanced) ...[
-                  _mapButton(
-                    Icons.loop,
-                    _loopDialog,
-                    tooltip: 'Generer rundtur fra startpunkt',
+                // Rarely-used tools (loop generator, undo, GPX) share one
+                // button so the map keeps only the everyday controls.
+                PopupMenuButton<String>(
+                  tooltip: 'Verktøy',
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: NkColors.border),
+                    ),
+                    child: const Icon(
+                      Icons.build_outlined,
+                      size: 20,
+                      color: NkColors.primaryBlue,
+                    ),
                   ),
-                ],
-                if (_showAdvanced && _loopGenerated) ...[
-                  const SizedBox(height: 6),
-                  _mapButton(
-                    Icons.refresh,
-                    () => _generateLoop(reroll: true),
-                    tooltip: 'Ny rundtur-variant',
-                  ),
-                ],
-                if (_anchors.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  _mapButton(Icons.undo, () {
-                    // Quick undo for the most recent anchor — faster than
-                    // finding the row in the waypoint list.
-                    setState(() {
-                      _anchors.removeLast();
-                      _routeDirty = true;
-                    });
-                  }, tooltip: 'Angre siste punkt'),
-                ],
+                  onSelected: (v) {
+                    switch (v) {
+                      case 'loop':
+                        _loopDialog();
+                      case 'reroll':
+                        _generateLoop(reroll: true);
+                      case 'undo':
+                        setState(() {
+                          _anchors.removeLast();
+                          _routeDirty = true;
+                        });
+                      case 'import':
+                        _importGpx();
+                      case 'export':
+                        if (trip != null) _exportGpx(trip);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'loop',
+                      enabled: _hasType(WaypointType.start),
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.loop),
+                        title: Text('Generer rundtur fra start'),
+                      ),
+                    ),
+                    if (_loopGenerated)
+                      const PopupMenuItem(
+                        value: 'reroll',
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(Icons.refresh),
+                          title: Text('Ny rundtur-variant'),
+                        ),
+                      ),
+                    PopupMenuItem(
+                      value: 'undo',
+                      enabled: _anchors.isNotEmpty,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.undo),
+                        title: Text('Angre siste punkt'),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'import',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.upload_file_outlined),
+                        title: Text('Importer GPX'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'export',
+                      enabled: route?.hasRoute == true,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.download_outlined),
+                        title: Text('Eksporter GPX'),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1416,9 +1471,27 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               ),
             ),
           ),
-        Text(
-          trip.name.isEmpty ? 'Tur uten navn' : trip.name,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                trip.name.isEmpty ? 'Tur uten navn' : trip.name,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Navn, notater og hjemme senest',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              onPressed: () async {
+                await showTripDetailsSheet(context, trip);
+                if (mounted) setState(() {});
+              },
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         Wrap(
@@ -1517,7 +1590,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             children: [
               _actionBtn(
                 icon: Icons.route,
-                label: _anchors.length >= 2 ? 'Beregn rute' : 'Velg A og B',
+                label: _anchors.length >= 2
+                    ? 'Generer tur'
+                    : 'Velg start og mål',
                 primary: true,
                 enabled: _anchors.length >= 2 && !context.read<AppState>().busy,
                 onTap: _calculateRoute,
@@ -1536,61 +1611,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   onTap: _clearRoute,
                 ),
               ],
-              // Rarely-used file actions live in an overflow menu.
-              PopupMenuButton<String>(
-                tooltip: 'Flere valg',
-                onSelected: (v) {
-                  if (v == 'import') _importGpx();
-                  if (v == 'export') _exportGpx(trip);
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'import',
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(Icons.upload_file_outlined),
-                      title: Text('Importer GPX'),
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'export',
-                    enabled: route?.hasRoute == true,
-                    child: const ListTile(
-                      dense: true,
-                      leading: Icon(Icons.download_outlined),
-                      title: Text('Eksporter GPX'),
-                    ),
-                  ),
-                ],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: NkColors.primaryBlue),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.more_horiz,
-                        size: 16,
-                        color: NkColors.primaryBlue,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Flere valg',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: NkColors.primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1608,7 +1628,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     )
                   : null,
               icon: const Icon(Icons.terrain, size: 18),
-              label: const Text('Til analyse'),
+              label: const Text('Neste: Pakking og vær'),
             ),
           ),
           const SizedBox(height: 10),
@@ -2000,32 +2020,6 @@ class _TripConfig extends StatefulWidget {
 }
 
 class _TripConfigState extends State<_TripConfig> {
-  late TextEditingController _name;
-  late TextEditingController _notes;
-
-  @override
-  void initState() {
-    super.initState();
-    _name = TextEditingController(text: widget.trip.name);
-    _notes = TextEditingController(text: widget.trip.notes);
-  }
-
-  @override
-  void didUpdateWidget(covariant _TripConfig old) {
-    super.didUpdateWidget(old);
-    if (old.trip.id != widget.trip.id) {
-      _name.text = widget.trip.name;
-      _notes.text = widget.trip.notes;
-    }
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _notes.dispose();
-    super.dispose();
-  }
-
   Future<void> _pickDate(bool start) async {
     final trip = widget.trip;
     final state = context.read<AppState>();
@@ -2108,37 +2102,6 @@ class _TripConfigState extends State<_TripConfig> {
     if (answer != null) trip.avalancheTerrain = answer;
   }
 
-  Future<void> _pickExpectedReturn() async {
-    final trip = widget.trip;
-    final state = context.read<AppState>();
-    final day = await showDatePicker(
-      context: context,
-      initialDate: trip.expectedReturn ?? trip.endDate ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 540)),
-      helpText: 'Hjemme senest – dato',
-    );
-    if (day == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        trip.expectedReturn ?? day.add(const Duration(hours: 18)),
-      ),
-      helpText: 'Hjemme senest – klokkeslett',
-    );
-    if (time == null || !mounted) return;
-    setState(() {
-      trip.expectedReturn = DateTime(
-        day.year,
-        day.month,
-        day.day,
-        time.hour,
-        time.minute,
-      );
-    });
-    await state.saveTrip(trip);
-  }
-
   @override
   Widget build(BuildContext context) {
     final trip = widget.trip;
@@ -2148,13 +2111,6 @@ class _TripConfigState extends State<_TripConfig> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SectionHeader('Turinnstillinger', icon: Icons.tune),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _name,
-            decoration: const InputDecoration(labelText: 'Turnavn'),
-            onChanged: (v) => trip.name = v,
-            onEditingComplete: () => state.saveTrip(trip),
-          ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -2182,26 +2138,6 @@ class _TripConfigState extends State<_TripConfig> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          _DateField(
-            label: 'Hjemme senest (valgfritt)',
-            date: trip.expectedReturn,
-            text: trip.expectedReturn == null
-                ? 'Ikke satt'
-                : fmtDateTime(trip.expectedReturn!),
-            onTap: _pickExpectedReturn,
-          ),
-          if (trip.expectedReturn != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  setState(() => trip.expectedReturn = null);
-                  state.saveTrip(trip);
-                },
-                child: const Text('Fjern'),
-              ),
-            ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -2452,17 +2388,6 @@ class _TripConfigState extends State<_TripConfig> {
               },
             ),
           ],
-          const SizedBox(height: 10),
-          TextField(
-            controller: _notes,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: 'Notater (valgfritt)',
-              hintText: 'Erfaring, utstyr, avtaler…',
-            ),
-            onChanged: (v) => trip.notes = v,
-            onEditingComplete: () => state.saveTrip(trip),
-          ),
         ],
       ),
     );
@@ -2633,12 +2558,10 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
 class _DateField extends StatelessWidget {
   final String label;
   final DateTime? date;
-  final String? text;
   final VoidCallback onTap;
   const _DateField({
     required this.label,
     required this.date,
-    this.text,
     required this.onTap,
   });
 
@@ -2653,7 +2576,7 @@ class _DateField extends StatelessWidget {
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
         ),
         child: Text(
-          text ?? fmtDate(date),
+          fmtDate(date),
           style: TextStyle(
             fontSize: 13,
             color: date == null ? NkColors.textSecondary : NkColors.textPrimary,
