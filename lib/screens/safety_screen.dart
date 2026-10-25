@@ -134,9 +134,16 @@ class _TripCardState extends State<_TripCard> {
     b.writeln('Aktivitet: ${trip.activity.label}');
     b.writeln('Sesong/bæring: ${trip.season.label} · ${trip.carry.label}');
     b.writeln('Deltakere: ${trip.participants}');
+    if (trip.expectedReturn != null) {
+      b.writeln(
+        'Hjemme senest: ${fmtDateTime(trip.expectedReturn!)} – hører du ikke '
+        'fra meg da, ring meg. Får du ikke svar, kontakt politiet på 112.',
+      );
+    }
     if (trip.notes.isNotEmpty) b.writeln('Notater: ${trip.notes}');
     b.writeln(
-      '\nSendt fra NorgesKompasset – planlagt retur ${fmtDate(trip.endDate)}.',
+      '\nSendt fra NorgesKompasset – planlagt retur '
+      '${trip.expectedReturn != null ? fmtDateTime(trip.expectedReturn!) : fmtDate(trip.endDate)}.',
     );
     return b.toString();
   }

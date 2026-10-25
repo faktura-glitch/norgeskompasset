@@ -14,6 +14,7 @@ import 'elevation_screen.dart';
 import 'meals_screen.dart';
 import 'hiking_screen.dart';
 import 'recommendations_screen.dart';
+import 'safety_screen.dart';
 import 'trips_screen.dart';
 import 'weather_screen.dart';
 
@@ -326,6 +327,27 @@ class _UpcomingTripCard extends StatelessWidget {
                       ),
                   ],
                 ),
+                if (hasRoute && hasDates)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                      onPressed: () {
+                        context.read<AppState>().selectTrip(trip.id);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SafetyScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.share_outlined, size: 16),
+                      label: const Text('Send turplan til pårørende'),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 _TripSteps(
                   steps: [

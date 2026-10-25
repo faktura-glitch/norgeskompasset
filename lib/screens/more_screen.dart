@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../core/app_info.dart';
 import '../core/theme.dart';
 import '../models/profile.dart';
 import '../models/trip.dart';
@@ -14,6 +17,28 @@ import 'recommendations_screen.dart';
 import 'review_screen.dart';
 import 'safety_screen.dart';
 import 'weather_screen.dart';
+
+/// Opens the mail app with version and platform pre-filled so bug
+/// reports arrive with the context needed to reproduce them.
+Future<void> _sendFeedback(BuildContext context) async {
+  final platform = kIsWeb ? 'web' : defaultTargetPlatform.name;
+  final subject = Uri.encodeQueryComponent(
+    'Tilbakemelding NorgesKompasset $kAppVersion',
+  );
+  final body = Uri.encodeQueryComponent(
+    'Hva skjedde, eller hva ønsker du deg?\n\n\n—\nApp $kAppVersion · $platform',
+  );
+  final uri = Uri.parse('mailto:$kFeedbackEmail?subject=$subject&body=$body');
+  var ok = false;
+  try {
+    ok = await launchUrl(uri);
+  } catch (_) {
+    ok = false;
+  }
+  if (!ok && context.mounted) {
+    nkToast(context, 'Fant ingen e-postapp. Skriv til $kFeedbackEmail.');
+  }
+}
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -276,10 +301,23 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           NkCard(
+            onTap: () => _sendFeedback(context),
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.mail_outline),
+              title: Text('Gi tilbakemelding'),
+              subtitle: Text(
+                'Feil, ønsker eller ros – åpner e-post til $kFeedbackEmail',
+              ),
+              trailing: Icon(Icons.chevron_right),
+            ),
+          ),
+          const SizedBox(height: 12),
+          NkCard(
             onTap: () => showLicensePage(
               context: context,
               applicationName: 'NorgesKompasset',
-              applicationVersion: '1.0',
+              applicationVersion: kAppVersion,
             ),
             padding: const EdgeInsets.all(14),
             child: Row(
