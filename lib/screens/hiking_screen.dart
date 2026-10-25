@@ -1026,11 +1026,9 @@ class _StageCard extends StatelessWidget {
               builder: (_) {
                 final eta = DateTime.now().add(
                   Duration(
-                    minutes: (stageRemaining! /
-                            1000 /
-                            (position!.speed * 3.6) *
-                            60)
-                        .round(),
+                    minutes:
+                        (stageRemaining! / 1000 / (position!.speed * 3.6) * 60)
+                            .round(),
                   ),
                 );
                 final sunset = sunsetAt(

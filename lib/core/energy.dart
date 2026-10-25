@@ -69,10 +69,10 @@ double _metFor({
   var met = ascPerHour < 150
       ? 5.0
       : ascPerHour < 300
-          ? 6.5
-          : ascPerHour < 450
-              ? 7.5
-              : 9.0;
+      ? 6.5
+      : ascPerHour < 450
+      ? 7.5
+      : 9.0;
   if (descentM > ascentM && descentM > 400) {
     met = (met - 1.5).clamp(4.0, 9.0);
   }
@@ -94,12 +94,15 @@ double _kcalFor(double met, double kg, double minutes) =>
 /// [packKg] is the generated list's total weight divided by
 /// participants — personal gear per person, shared gear split.
 /// [minTempC] is the coldest forecast temperature if fetched.
-EnergyEstimate estimateDailyKcal(Trip trip,
-    {double bodyKg = 75, double? minTempC}) {
+EnergyEstimate estimateDailyKcal(
+  Trip trip, {
+  double bodyKg = 75,
+  double? minTempC,
+}) {
   final stages = trip.stages;
   final people = trip.participants.clamp(1, 20);
-  final packKg = trip.packingList
-          .fold(0.0, (s, i) => s + i.totalWeightGrams) /
+  final packKg =
+      trip.packingList.fold(0.0, (s, i) => s + i.totalWeightGrams) /
       1000 /
       people;
   final totalKg = bodyKg + packKg;
@@ -110,8 +113,7 @@ EnergyEstimate estimateDailyKcal(Trip trip,
   final workloads = <({double asc, double desc, double min})>[];
   if (stages.isNotEmpty) {
     for (final Stage s in stages) {
-      workloads.add(
-          (asc: s.ascent, desc: s.descent, min: s.estimatedMinutes));
+      workloads.add((asc: s.ascent, desc: s.descent, min: s.estimatedMinutes));
     }
   } else if (trip.route?.hasRoute == true) {
     final r = trip.route!;
@@ -122,19 +124,25 @@ EnergyEstimate estimateDailyKcal(Trip trip,
     workloads.add((
       asc: asc,
       desc: desc,
-      min: estimateHikingMinutes(dist, asc, desc, trip.pace,
-          activity: trip.activity),
+      min: estimateHikingMinutes(
+        dist,
+        asc,
+        desc,
+        trip.pace,
+        activity: trip.activity,
+      ),
     ));
   }
 
   var activity = 0.0, metMin = 0.0, totalMin = 0.0;
   for (final w in workloads) {
     final met = _metFor(
-        ascentM: w.asc,
-        descentM: w.desc,
-        minutes: w.min,
-        packKg: packKg,
-        pace: trip.pace);
+      ascentM: w.asc,
+      descentM: w.desc,
+      minutes: w.min,
+      packKg: packKg,
+      pace: trip.pace,
+    );
     activity += _kcalFor(met, totalKg, w.min);
     metMin += met * w.min;
     totalMin += w.min;
@@ -143,9 +151,7 @@ EnergyEstimate estimateDailyKcal(Trip trip,
   final avgMet = totalMin > 0 ? metMin / totalMin : 0.0;
 
   final base = bodyKg * 24;
-  final cold = minTempC != null
-      ? ((8 - minTempC).clamp(0.0, 22.5)) * 20
-      : 0.0;
+  final cold = minTempC != null ? ((8 - minTempC).clamp(0.0, 22.5)) * 20 : 0.0;
 
   return EnergyEstimate(
     kcalPerDay: base + activity + cold,

@@ -274,6 +274,7 @@ class Trip {
       stages.fold(0.0, (s, st) => s + st.estimatedMinutes);
 
   int get packedCount => packingList.where((i) => i.packed).length;
+
   /// Required items still to go in the pack. Worn items (boots, hiking
   /// clothes) never sit in the pack, so they are not counted as missing.
   int get missingRequiredCount => packingList
@@ -406,8 +407,7 @@ class Trip {
     'name': name,
     'start': startDate?.toIso8601String(),
     'end': endDate?.toIso8601String(),
-    if (expectedReturn != null)
-      'expRet': expectedReturn!.toIso8601String(),
+    if (expectedReturn != null) 'expRet': expectedReturn!.toIso8601String(),
     'status': status.name,
     'accom': accommodation.name,
     'season': season.name,

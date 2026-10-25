@@ -26,48 +26,48 @@ class AvalancheWarning {
 
   /// Norwegian danger-level label per the standard EAWS naming.
   String get levelLabel => switch (dangerLevel) {
-        0 => 'Ikke vurdert',
-        1 => '1 – Liten',
-        2 => '2 – Moderat',
-        3 => '3 – Betydelig',
-        4 => '4 – Stor',
-        _ => '5 – Meget stor',
-      };
+    0 => 'Ikke vurdert',
+    1 => '1 – Liten',
+    2 => '2 – Moderat',
+    3 => '3 – Betydelig',
+    4 => '4 – Stor',
+    _ => '5 – Meget stor',
+  };
 
   Map<String, dynamic> toJson() => {
-        'regId': regId,
-        'region': regionName,
-        'level': dangerLevel,
-        'from': validFrom?.toIso8601String(),
-        'to': validTo?.toIso8601String(),
-        'text': mainText,
-        'published': publishTime?.toIso8601String(),
-        'lat': lat,
-        'lon': lon,
-      };
+    'regId': regId,
+    'region': regionName,
+    'level': dangerLevel,
+    'from': validFrom?.toIso8601String(),
+    'to': validTo?.toIso8601String(),
+    'text': mainText,
+    'published': publishTime?.toIso8601String(),
+    'lat': lat,
+    'lon': lon,
+  };
 
-  factory AvalancheWarning.fromJson(Map<String, dynamic> j) =>
-      AvalancheWarning(
-        regId: j['regId']?.toString() ?? '',
-        regionName: j['region'] as String? ?? '',
-        dangerLevel: j['level'] as int? ?? 0,
-        validFrom: j['from'] != null
-            ? DateTime.tryParse(j['from'].toString())
-            : null,
-        validTo: j['to'] != null
-            ? DateTime.tryParse(j['to'].toString())
-            : null,
-        mainText: j['text'] as String? ?? '',
-        publishTime: j['published'] != null
-            ? DateTime.tryParse(j['published'].toString())
-            : null,
-        lat: (j['lat'] as num?)?.toDouble() ?? 0,
-        lon: (j['lon'] as num?)?.toDouble() ?? 0,
-      );
+  factory AvalancheWarning.fromJson(Map<String, dynamic> j) => AvalancheWarning(
+    regId: j['regId']?.toString() ?? '',
+    regionName: j['region'] as String? ?? '',
+    dangerLevel: j['level'] as int? ?? 0,
+    validFrom: j['from'] != null
+        ? DateTime.tryParse(j['from'].toString())
+        : null,
+    validTo: j['to'] != null ? DateTime.tryParse(j['to'].toString()) : null,
+    mainText: j['text'] as String? ?? '',
+    publishTime: j['published'] != null
+        ? DateTime.tryParse(j['published'].toString())
+        : null,
+    lat: (j['lat'] as num?)?.toDouble() ?? 0,
+    lon: (j['lon'] as num?)?.toDouble() ?? 0,
+  );
 
   /// Parses one entry of the Varsom Simple response format.
   factory AvalancheWarning.fromVarsomJson(
-      Map<String, dynamic> j, double lat, double lon) {
+    Map<String, dynamic> j,
+    double lat,
+    double lon,
+  ) {
     return AvalancheWarning(
       regId: j['RegId']?.toString() ?? '',
       regionName: j['RegionName'] as String? ?? '',

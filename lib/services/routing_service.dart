@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+
 import '../models/route_models.dart';
 import 'weather_service.dart' show ServiceException, describeNetworkError;
 
@@ -50,8 +52,11 @@ class RoutingService {
   /// the routing service and count as unrouted in the result.
   /// [profile] selects the BRouter profile (see [profileHiking] /
   /// [profileSki]).
-  Future<RouteResult> routeAlongTrails(List<LatLng> anchors,
-      {Set<int>? straightLegs, String profile = profileHiking}) async {
+  Future<RouteResult> routeAlongTrails(
+    List<LatLng> anchors, {
+    Set<int>? straightLegs,
+    String profile = profileHiking,
+  }) async {
     if (anchors.length < 2) {
       return (
         points: <RoutePoint>[],
@@ -86,14 +91,18 @@ class RoutingService {
       // Avoid duplicating the shared boundary point between legs.
       if (out.isNotEmpty && legPoints.isNotEmpty) legPoints.removeAt(0);
       if (straight && legPoints.isNotEmpty) {
-        straightRanges.add((start: out.length, end: out.length + legPoints.length - 1));
+        straightRanges.add((
+          start: out.length,
+          end: out.length + legPoints.length - 1,
+        ));
       }
       out.addAll(legPoints);
     }
 
     if (routedLegs == 0 && unreachable) {
       throw const ServiceException(
-          'Fikk ikke kontakt med ruteberegneren (BRouter).');
+        'Fikk ikke kontakt med ruteberegneren (BRouter).',
+      );
     }
     return (
       points: out,
@@ -103,25 +112,32 @@ class RoutingService {
     );
   }
 
-  Future<List<RoutePoint>> _request(List<LatLng> anchors,
-      String profile) async {
+  Future<List<RoutePoint>> _request(
+    List<LatLng> anchors,
+    String profile,
+  ) async {
     final lonlats = anchors
-        .map((p) =>
-            '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
+        .map(
+          (p) =>
+              '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}',
+        )
         .join('|');
     final uri = Uri.parse(
-        '$_endpoint?lonlats=$lonlats&profile=$profile&alternativeidx=0&format=geojson');
+      '$_endpoint?lonlats=$lonlats&profile=$profile&alternativeidx=0&format=geojson',
+    );
 
     http.Response res;
     try {
       res = await http.get(uri).timeout(const Duration(seconds: 30));
     } catch (e) {
       throw ServiceException(
-          'Fikk ikke kontakt med ruteberegneren (${describeNetworkError(e)}).');
+        'Fikk ikke kontakt med ruteberegneren (${describeNetworkError(e)}).',
+      );
     }
     if (res.statusCode != 200) {
       throw ServiceException(
-          'Ruteberegner svarte med feil (HTTP ${res.statusCode}).');
+        'Ruteberegner svarte med feil (HTTP ${res.statusCode}).',
+      );
     }
 
     final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -129,18 +145,19 @@ class RoutingService {
     if (features.isEmpty) {
       throw const ServiceException('Ingen stirute funnet for etappen.');
     }
-    final geometry =
-        features.first['geometry'] as Map<String, dynamic>?;
+    final geometry = features.first['geometry'] as Map<String, dynamic>?;
     final coords = geometry?['coordinates'] as List? ?? [];
     final points = <RoutePoint>[];
     for (final c in coords) {
       final list = c as List;
       if (list.length >= 2) {
-        points.add(RoutePoint(
-          (list[1] as num).toDouble(),
-          (list[0] as num).toDouble(),
-          elevation: list.length >= 3 ? (list[2] as num?)?.toDouble() : null,
-        ));
+        points.add(
+          RoutePoint(
+            (list[1] as num).toDouble(),
+            (list[0] as num).toDouble(),
+            elevation: list.length >= 3 ? (list[2] as num?)?.toDouble() : null,
+          ),
+        );
       }
     }
     if (points.length < 2) {
@@ -154,10 +171,12 @@ class RoutingService {
     final points = <RoutePoint>[RoutePoint(a.latitude, a.longitude)];
     for (var s = 1; s <= steps; s++) {
       final t = s / steps;
-      points.add(RoutePoint(
-        a.latitude + (b.latitude - a.latitude) * t,
-        a.longitude + (b.longitude - a.longitude) * t,
-      ));
+      points.add(
+        RoutePoint(
+          a.latitude + (b.latitude - a.latitude) * t,
+          a.longitude + (b.longitude - a.longitude) * t,
+        ),
+      );
     }
     return points;
   }

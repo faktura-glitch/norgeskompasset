@@ -1,5 +1,7 @@
 import 'dart:math';
+
 import 'package:latlong2/latlong.dart';
+
 import '../models/route_models.dart';
 import '../models/stage.dart';
 import '../models/trip.dart';
@@ -21,8 +23,7 @@ List<LatLng> loopAnchors(LatLng start, double targetKm, int seed) {
     for (final b in [base, base + 120])
       LatLng(
         start.latitude + radius * cos(b * pi / 180) / mPerDegLat,
-        start.longitude +
-            radius * sin(b * pi / 180) / (mPerDegLat * cosLat),
+        start.longitude + radius * sin(b * pi / 180) / (mPerDegLat * cosLat),
       ),
   ];
 }
@@ -52,8 +53,9 @@ List<double> cumulativeDistances(List<RoutePoint> points) {
 /// Ascent/descent computed from point elevations.
 /// A small threshold filters typical elevation-data noise (≈3 m per step).
 ({double ascent, double descent, double? highest}) elevationStats(
-    List<RoutePoint> points,
-    {double noiseThresholdMeters = 3.0}) {
+  List<RoutePoint> points, {
+  double noiseThresholdMeters = 3.0,
+}) {
   var ascent = 0.0, descent = 0.0, pending = 0.0;
   double? lastEle;
   double? highest;
@@ -87,9 +89,13 @@ List<double> cumulativeDistances(List<RoutePoint> points) {
 /// the foot baseline; ski is slower uphill on fells, bike much
 /// faster on the flat but still punished by climbing, and paddling
 /// ignores elevation entirely (flat water by definition).
-double estimateHikingMinutes(double distanceMeters, double ascentMeters,
-    double descentMeters, HikingPace pace,
-    {TripActivity activity = TripActivity.foot}) {
+double estimateHikingMinutes(
+  double distanceMeters,
+  double ascentMeters,
+  double descentMeters,
+  HikingPace pace, {
+  TripActivity activity = TripActivity.foot,
+}) {
   final km = distanceMeters / 1000;
   final (kmh, minPer100m) = switch (activity) {
     TripActivity.foot => (5.0, 10.0),
@@ -99,7 +105,8 @@ double estimateHikingMinutes(double distanceMeters, double ascentMeters,
   };
   var minutes = km / kmh * 60 + ascentMeters / 100 * minPer100m;
   // Steep descents slow hikers and skiers — not paddlers or riders.
-  if (km > 0 && (activity == TripActivity.foot || activity == TripActivity.ski)) {
+  if (km > 0 &&
+      (activity == TripActivity.foot || activity == TripActivity.ski)) {
     final descentPerKm = descentMeters / km;
     if (descentPerKm > 40) {
       minutes += descentMeters / 100 * 2;
@@ -137,7 +144,9 @@ List<List<RoutePoint>> splitIntoStages(List<RoutePoint> points, int count) {
 /// Splits points at the given boundary indices (exclusive boundaries).
 /// Each returned stage shares the boundary point with its neighbours.
 List<List<RoutePoint>> splitAtIndices(
-    List<RoutePoint> points, List<int> boundaries) {
+  List<RoutePoint> points,
+  List<int> boundaries,
+) {
   final result = <List<RoutePoint>>[];
   var start = 0;
   for (final b in boundaries) {
@@ -192,36 +201,46 @@ StageDifficulty analyzeStageDifficulty(Stage stage) {
   if (steep != null && steep.percent > 25) {
     steepScore = 20;
     factors.add(
-        'Bratte partier (inntil ${steep.percent.round()} % stigning over ${(steep.distanceMeters).round()} m)');
+      'Bratte partier (inntil ${steep.percent.round()} % stigning over ${(steep.distanceMeters).round()} m)',
+    );
   } else if (steep != null && steep.percent > 15) {
     steepScore = 10;
     factors.add('Enkelte bratte partier (inntil ${steep.percent.round()} %)');
   }
 
   if (stage.estimatedMinutes > 480) {
-    factors.add('Lang dag ute (${(stage.estimatedMinutes / 60).toStringAsFixed(1)} t estimert)');
+    factors.add(
+      'Lang dag ute (${(stage.estimatedMinutes / 60).toStringAsFixed(1)} t estimert)',
+    );
   }
 
-  final score =
-      (distanceScore + ascentScore + descentScore + steepScore).clamp(0, 100);
+  final score = (distanceScore + ascentScore + descentScore + steepScore).clamp(
+    0,
+    100,
+  );
   final level = score < 25
       ? DifficultyLevel.easy
       : score < 45
-          ? DifficultyLevel.moderate
-          : score < 65
-              ? DifficultyLevel.challenging
-              : DifficultyLevel.demanding;
+      ? DifficultyLevel.moderate
+      : score < 65
+      ? DifficultyLevel.challenging
+      : DifficultyLevel.demanding;
 
   if (factors.isEmpty) {
     factors.add('Rolig terreng og kort distanse');
   }
-  return StageDifficulty(level: level, score: score.toDouble(), factors: factors);
+  return StageDifficulty(
+    level: level,
+    score: score.toDouble(),
+    factors: factors,
+  );
 }
 
 /// Finds the maximum sustained gradient (percent) over >=150 m sections.
 ({double percent, double distanceMeters})? maxSustainedGradient(
-    List<RoutePoint> points,
-    {double windowMeters = 150}) {
+  List<RoutePoint> points, {
+  double windowMeters = 150,
+}) {
   if (points.length < 2) return null;
   final cum = cumulativeDistances(points);
   double? best;
@@ -258,11 +277,9 @@ double distanceToRouteMeters(List<RoutePoint> points, LatLng position) {
   // at hiking scale (< a few km per segment).
   const mPerDegLat = 111320.0;
   final cosLat = cos(position.latitude * pi / 180);
-  double toX(LatLng p) => (p.longitude - position.longitude) *
-      mPerDegLat *
-      cosLat;
-  double toY(LatLng p) =>
-      (p.latitude - position.latitude) * mPerDegLat;
+  double toX(LatLng p) =>
+      (p.longitude - position.longitude) * mPerDegLat * cosLat;
+  double toY(LatLng p) => (p.latitude - position.latitude) * mPerDegLat;
 
   var best = double.infinity;
   for (var i = 1; i < points.length; i++) {
@@ -274,9 +291,7 @@ double distanceToRouteMeters(List<RoutePoint> points, LatLng position) {
     final dy = by - ay;
     final len2 = dx * dx + dy * dy;
     // Projection of position onto segment ab, clamped to [0,1].
-    final t = len2 > 0
-        ? ((-ax) * dx + (-ay) * dy) / len2
-        : 0.0;
+    final t = len2 > 0 ? ((-ax) * dx + (-ay) * dy) / len2 : 0.0;
     final tc = t.clamp(0.0, 1.0);
     final px = ax + tc * dx;
     final py = ay + tc * dy;
@@ -306,8 +321,11 @@ int nearestPointIndex(List<RoutePoint> points, LatLng position) {
 /// to bound track-log size — GPS tracks accumulate thousands of near-
 /// redundant points that would otherwise bloat local storage and the
 /// Firestore document (1 MB limit per trip).
-List<T> simplifyPolyline<T>(List<T> items, double toleranceMeters,
-    LatLng Function(T) toLatLng) {
+List<T> simplifyPolyline<T>(
+  List<T> items,
+  double toleranceMeters,
+  LatLng Function(T) toLatLng,
+) {
   if (items.length <= 2) return items;
   final keep = List<bool>.filled(items.length, false);
   keep[0] = keep[items.length - 1] = true;
@@ -340,8 +358,7 @@ List<T> simplifyPolyline<T>(List<T> items, double toleranceMeters,
       if (len2 <= 0) {
         d = sqrt((px - ax) * (px - ax) + (py - ay) * (py - ay));
       } else {
-        final t = (((px - ax) * dx + (py - ay) * dy) / len2)
-            .clamp(0.0, 1.0);
+        final t = (((px - ax) * dx + (py - ay) * dy) / len2).clamp(0.0, 1.0);
         final qx = ax + t * dx, qy = ay + t * dy;
         d = sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
       }
@@ -356,5 +373,8 @@ List<T> simplifyPolyline<T>(List<T> items, double toleranceMeters,
       stack.add((maxIdx, hi));
     }
   }
-  return [for (var i = 0; i < items.length; i++) if (keep[i]) items[i]];
+  return [
+    for (var i = 0; i < items.length; i++)
+      if (keep[i]) items[i],
+  ];
 }

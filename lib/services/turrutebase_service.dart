@@ -38,8 +38,9 @@ class TrailRoute {
 
   /// Trail geometry does not change after parsing. Reuse map coordinates
   /// across camera/panel rebuilds instead of allocating them each time.
-  late final List<LatLng> latLngs =
-      List.unmodifiable(points.map((point) => point.latLng));
+  late final List<LatLng> latLngs = List.unmodifiable(
+    points.map((point) => point.latLng),
+  );
 
   bool matchesQuery(String query) {
     final q = query.trim().toLowerCase();
@@ -132,12 +133,7 @@ class TurrutebaseService {
     http.Response res;
     try {
       res = await http
-          .get(
-            uri,
-            headers: {
-              'User-Agent': kUserAgent,
-            },
-          )
+          .get(uri, headers: {'User-Agent': kUserAgent})
           .timeout(const Duration(seconds: 25));
     } catch (e) {
       throw ServiceException(

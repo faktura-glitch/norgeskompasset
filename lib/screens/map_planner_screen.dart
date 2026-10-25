@@ -937,7 +937,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         : const Icon(Icons.search, size: 20),
                     suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
-                            tooltip: 'TÃ¸m sÃ¸k',
+                            tooltip: 'Tøm søk',
                             icon: const Icon(Icons.close, size: 18),
                             onPressed: () {
                               _searchCtrl.clear();
@@ -1798,7 +1798,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    tooltip: 'FÃ¦rre dager',
+                    tooltip: 'Færre dager',
                     icon: const Icon(Icons.remove_circle_outline),
                     onPressed: days > 1 ? () => setD(() => days--) : null,
                   ),
@@ -2000,10 +2000,12 @@ class _TripConfigState extends State<_TripConfig> {
     var seasonChanged = false;
     setState(() {
       if (start) {
+        // Moving the start keeps the number of days.
+        final span = trip.startDate != null && trip.endDate != null
+            ? trip.endDate!.difference(trip.startDate!)
+            : Duration.zero;
         trip.startDate = picked;
-        if (trip.endDate == null || trip.endDate!.isBefore(picked)) {
-          trip.endDate = picked;
-        }
+        trip.endDate = picked.add(span.isNegative ? Duration.zero : span);
         // The packing rules follow the season, so keep it in step
         // with the chosen start date.
         final season = TurrutebaseService.seasonForDate(picked);
@@ -2121,11 +2123,18 @@ class _TripConfigState extends State<_TripConfig> {
                 ),
               ),
               const SizedBox(width: 8),
+              // Duration has one source: start date + «Dager». The last
+              // day is derived and shown read-only.
               Expanded(
-                child: _DateField(
-                  label: 'Sluttdato',
-                  date: trip.endDate,
-                  onTap: () => _pickDate(false),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Siste dag',
+                    helperText: 'Endres med «Dager»',
+                  ),
+                  child: Text(
+                    fmtDate(trip.endDate),
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
               ),
             ],
@@ -2172,7 +2181,9 @@ class _TripConfigState extends State<_TripConfig> {
                       trip.activity = v;
                       switch (v) {
                         case TripActivity.ski:
-                          trip.season = TripSeason.winter;
+                          if (trip.season == TripSeason.summer) {
+                            trip.season = TripSeason.winter;
+                          }
                           if (trip.carry == CarryMode.canoe) {
                             trip.carry = CarryMode.backpack;
                           }
@@ -2244,7 +2255,7 @@ class _TripConfigState extends State<_TripConfig> {
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Sesong',
-                    helperText: 'Vinter legger til skred- og vinterutstyr',
+                    helperText: 'Settes fra startdatoen – kan overstyres',
                   ),
                   items: [
                     for (final s in TripSeason.values)
@@ -2254,20 +2265,12 @@ class _TripConfigState extends State<_TripConfig> {
                     if (v == null) return;
                     setState(() {
                       trip.season = v;
-                      // Season and activity stay consistent — winter
-                      // selects ski (and the ski layer), leaving winter
-                      // flips ski back to foot. Foot + winter stays
-                      // reachable via the activity picker afterwards.
+                      // Winter allows foot (snowshoes) and ski trips;
+                      // only paddling needs open water.
                       if (v == TripSeason.winter &&
-                          trip.activity != TripActivity.ski) {
-                        trip.activity = TripActivity.ski;
-                        // A canoe doesn't carry a ski trip.
-                        if (trip.carry == CarryMode.canoe) {
-                          trip.carry = CarryMode.backpack;
-                        }
-                      } else if (v != TripSeason.winter &&
-                          trip.activity == TripActivity.ski) {
+                          trip.activity == TripActivity.paddle) {
                         trip.activity = TripActivity.foot;
+                        trip.carry = CarryMode.backpack;
                       }
                     });
                     if (v == TripSeason.winter) {
@@ -2307,7 +2310,7 @@ class _TripConfigState extends State<_TripConfig> {
                   child: Row(
                     children: [
                       IconButton(
-                        tooltip: 'Ã‰n dag kortere',
+                        tooltip: 'Én dag kortere',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                         onPressed: () async {
@@ -2331,7 +2334,7 @@ class _TripConfigState extends State<_TripConfig> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Ã‰n dag lengre',
+                        tooltip: 'Én dag lengre',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.add_circle_outline, size: 20),
                         onPressed: () async {
@@ -2364,7 +2367,7 @@ class _TripConfigState extends State<_TripConfig> {
                   child: Row(
                     children: [
                       IconButton(
-                        tooltip: 'FÃ¦rre deltakere',
+                        tooltip: 'Færre deltakere',
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                         onPressed: () async {
@@ -2398,28 +2401,35 @@ class _TripConfigState extends State<_TripConfig> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<bool?>(
-            key: ValueKey('terrain-${trip.avalancheTerrain}'),
-            initialValue: trip.avalancheTerrain,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Skredterreng',
-              helperText: 'Styrer skredutstyr – sjekk varsom.no ved tvil',
-            ),
-            items: const [
-              DropdownMenuItem(value: null, child: Text('Ukjent')),
-              DropdownMenuItem(
-                value: false,
-                child: Text('Utenfor skredterreng'),
+          if (trip.activity == TripActivity.ski ||
+              trip.season == TripSeason.winter ||
+              trip.avalancheTerrain != null) ...[
+            const SizedBox(height: 10),
+            DropdownButtonFormField<bool?>(
+              key: ValueKey('terrain-${trip.avalancheTerrain}'),
+              initialValue: trip.avalancheTerrain,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Skredterreng',
+                helperText: 'Styrer skredutstyr – sjekk varsom.no ved tvil',
               ),
-              DropdownMenuItem(value: true, child: Text('Mulig skredterreng')),
-            ],
-            onChanged: (v) async {
-              setState(() => trip.avalancheTerrain = v);
-              await state.updateTripSetup(trip);
-            },
-          ),
+              items: const [
+                DropdownMenuItem(value: null, child: Text('Ukjent')),
+                DropdownMenuItem(
+                  value: false,
+                  child: Text('Utenfor skredterreng'),
+                ),
+                DropdownMenuItem(
+                  value: true,
+                  child: Text('Mulig skredterreng'),
+                ),
+              ],
+              onChanged: (v) async {
+                setState(() => trip.avalancheTerrain = v);
+                await state.updateTripSetup(trip);
+              },
+            ),
+          ],
           const SizedBox(height: 10),
           TextField(
             controller: _notes,

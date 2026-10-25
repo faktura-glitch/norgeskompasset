@@ -16,7 +16,9 @@ class AuthService {
   Future<User?> signIn(String email, String password) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
-          email: email.trim(), password: password);
+        email: email.trim(),
+        password: password,
+      );
       return cred.user;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_messageFor(e), e.code);
@@ -26,7 +28,9 @@ class AuthService {
   Future<User?> register(String email, String password) async {
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
-          email: email.trim(), password: password);
+        email: email.trim(),
+        password: password,
+      );
       return cred.user;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_messageFor(e), e.code);
@@ -80,26 +84,20 @@ class AuthService {
   }
 
   String _messageFor(FirebaseAuthException e) => switch (e.code) {
-        'invalid-email' => 'Ugyldig e-postadresse.',
-        'user-not-found' =>
-          'Ingen konto funnet med denne e-posten.',
-        'wrong-password' || 'invalid-credential' =>
-          'Feil e-post eller passord.',
-        'email-already-in-use' =>
-          'Det finnes allerede en konto med denne e-posten.',
-        'weak-password' =>
-          'Passordet er for svakt – bruk minst 6 tegn.',
-        'too-many-requests' =>
-          'For mange forsøk – vent litt og prøv igjen.',
-        'network-request-failed' =>
-          'Nettverksfeil – sjekk tilkoblingen og prøv igjen.',
-        'user-disabled' =>
-          'Kontoen er deaktivert. Ta kontakt med support.',
-        'requires-recent-login' =>
-          'Av sikkerhetsgrunner må du skrive inn passordet på nytt.',
-        _ =>
-          'Pålogging feilet (${e.code}). Prøv igjen.',
-      };
+    'invalid-email' => 'Ugyldig e-postadresse.',
+    'user-not-found' => 'Ingen konto funnet med denne e-posten.',
+    'wrong-password' || 'invalid-credential' => 'Feil e-post eller passord.',
+    'email-already-in-use' =>
+      'Det finnes allerede en konto med denne e-posten.',
+    'weak-password' => 'Passordet er for svakt – bruk minst 6 tegn.',
+    'too-many-requests' => 'For mange forsøk – vent litt og prøv igjen.',
+    'network-request-failed' =>
+      'Nettverksfeil – sjekk tilkoblingen og prøv igjen.',
+    'user-disabled' => 'Kontoen er deaktivert. Ta kontakt med support.',
+    'requires-recent-login' =>
+      'Av sikkerhetsgrunner må du skrive inn passordet på nytt.',
+    _ => 'Pålogging feilet (${e.code}). Prøv igjen.',
+  };
 }
 
 class AuthException implements Exception {

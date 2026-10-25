@@ -32,8 +32,7 @@ import 'dart:math';
         (cosDec * cos(lat * pi / 180));
     if (cosH > 1 || cosH < -1) return null;
     final h =
-        (rising ? 360 - acos(cosH) * 180 / pi : acos(cosH) * 180 / pi) /
-        15;
+        (rising ? 360 - acos(cosH) * 180 / pi : acos(cosH) * 180 / pi) / 15;
     final tt = h + ra - 0.06571 * t - 6.622;
     return (tt - lngHour) % 24;
   }

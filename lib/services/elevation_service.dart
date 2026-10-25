@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+
 import '../models/route_models.dart';
 import 'weather_service.dart' show ServiceException, describeNetworkError;
 
@@ -45,7 +47,9 @@ class ElevationService {
     var filled = 0;
     for (var i = 0; i < sampled.length; i += _batchSize) {
       final batch = sampled.sublist(
-          i, (i + _batchSize).clamp(0, sampled.length));
+        i,
+        (i + _batchSize).clamp(0, sampled.length),
+      );
       final locations = batch
           .map((p) => '${p.lat.toStringAsFixed(5)},${p.lon.toStringAsFixed(5)}')
           .join('|');
@@ -55,11 +59,13 @@ class ElevationService {
         res = await http.get(uri).timeout(const Duration(seconds: 20));
       } catch (e) {
         throw ServiceException(
-            'Fikk ikke kontakt med høydedatatjenesten (${describeNetworkError(e)}).');
+          'Fikk ikke kontakt med høydedatatjenesten (${describeNetworkError(e)}).',
+        );
       }
       if (res.statusCode != 200) {
         throw ServiceException(
-            'Høydedata utilgjengelig (HTTP ${res.statusCode}).');
+          'Høydedata utilgjengelig (HTTP ${res.statusCode}).',
+        );
       }
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       final results = body['results'] as List? ?? [];
@@ -88,10 +94,11 @@ class ElevationService {
     Object? lastError;
     for (final p in sampled) {
       try {
-        final uri = Uri.parse('$_kartverketEndpoint'
-            '?nord=${p.lat.toStringAsFixed(5)}&ost=${p.lon.toStringAsFixed(5)}&koordsys=4326&geojson=false');
-        final res =
-            await http.get(uri).timeout(const Duration(seconds: 10));
+        final uri = Uri.parse(
+          '$_kartverketEndpoint'
+          '?nord=${p.lat.toStringAsFixed(5)}&ost=${p.lon.toStringAsFixed(5)}&koordsys=4326&geojson=false',
+        );
+        final res = await http.get(uri).timeout(const Duration(seconds: 10));
         if (res.statusCode == 200) {
           final body = jsonDecode(res.body) as Map<String, dynamic>;
           final punkter = body['punkter'] as List? ?? [];
@@ -109,7 +116,8 @@ class ElevationService {
     }
     if (filled == 0) {
       throw ServiceException(
-          'Høydedata utilgjengelig fra begge kilder${lastError != null ? ' (${describeNetworkError(lastError)})' : ''}.');
+        'Høydedata utilgjengelig fra begge kilder${lastError != null ? ' (${describeNetworkError(lastError)})' : ''}.',
+      );
     }
     return filled;
   }

@@ -178,10 +178,7 @@ class TileCache {
           missing.skip(i).take(batch).map((u) async {
             try {
               final res = await httpClient
-                  .get(
-                    Uri.parse(u),
-                    headers: {'User-Agent': kUserAgent},
-                  )
+                  .get(Uri.parse(u), headers: {'User-Agent': kUserAgent})
                   .timeout(const Duration(seconds: 15));
               if (res.statusCode == 200) {
                 await write(u, res.bodyBytes);

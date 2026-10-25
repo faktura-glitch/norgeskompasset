@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'trip.dart' show TripSeason;
 
 /// Self-assessed touring level — drives the "kan du klare turen?"
@@ -8,23 +9,23 @@ enum TourLevel { novice, intermediate, experienced }
 
 extension TourLevelX on TourLevel {
   String get label => switch (this) {
-        TourLevel.novice => 'Nybegynner',
-        TourLevel.intermediate => 'Middels erfaren',
-        TourLevel.experienced => 'Erfaren',
-      };
+    TourLevel.novice => 'Nybegynner',
+    TourLevel.intermediate => 'Middels erfaren',
+    TourLevel.experienced => 'Erfaren',
+  };
 
   /// Comfortable daily limits (km / ascent m) in mountain terrain —
   /// conservative planning figures, not guarantees.
   double get maxKmPerDay => switch (this) {
-        TourLevel.novice => 12,
-        TourLevel.intermediate => 18,
-        TourLevel.experienced => 26,
-      };
+    TourLevel.novice => 12,
+    TourLevel.intermediate => 18,
+    TourLevel.experienced => 26,
+  };
   double get maxAscentPerDay => switch (this) {
-        TourLevel.novice => 500,
-        TourLevel.intermediate => 900,
-        TourLevel.experienced => 1500,
-      };
+    TourLevel.novice => 500,
+    TourLevel.intermediate => 900,
+    TourLevel.experienced => 1500,
+  };
 }
 
 /// App-level personal profile. Trip-independent — it travels with the
@@ -115,12 +116,12 @@ class UserProfile {
 
   /// Dietary restrictions that affect meal planning.
   List<String> get dietTags => [
-        if (vegan) 'Vegansk',
-        if (vegetarian && !vegan) 'Vegetar',
-        if (glutenFree) 'Glutenfri',
-        if (lactoseFree) 'Laktosefri',
-        if (nutAllergy) 'Nøtteallergi',
-      ];
+    if (vegan) 'Vegansk',
+    if (vegetarian && !vegan) 'Vegetar',
+    if (glutenFree) 'Glutenfri',
+    if (lactoseFree) 'Laktosefri',
+    if (nutAllergy) 'Nøtteallergi',
+  ];
 
   bool get isEmpty =>
       name.isEmpty &&
@@ -143,58 +144,56 @@ class UserProfile {
       level == null;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'phone': phone,
-        'coldSensitive': coldSensitive,
-        'vegetarian': vegetarian,
-        'vegan': vegan,
-        'glutenFree': glutenFree,
-        'lactoseFree': lactoseFree,
-        'nutAllergy': nutAllergy,
-        'prefersDehydrated': prefersDehydrated,
-        'lightPacker': lightPacker,
-        'extraComfort': extraComfort,
-        'withDog': withDog,
-        'ownsTent': ownsTent,
-        'ownsStove': ownsStove,
-        'preferredSeason': preferredSeason?.name,
-        'iceName': iceName,
-        'icePhone': icePhone,
-        'medicalNotes': medicalNotes,
-        'weightKg': weightKg,
-        'level': level?.name,
-      };
+    'name': name,
+    'phone': phone,
+    'coldSensitive': coldSensitive,
+    'vegetarian': vegetarian,
+    'vegan': vegan,
+    'glutenFree': glutenFree,
+    'lactoseFree': lactoseFree,
+    'nutAllergy': nutAllergy,
+    'prefersDehydrated': prefersDehydrated,
+    'lightPacker': lightPacker,
+    'extraComfort': extraComfort,
+    'withDog': withDog,
+    'ownsTent': ownsTent,
+    'ownsStove': ownsStove,
+    'preferredSeason': preferredSeason?.name,
+    'iceName': iceName,
+    'icePhone': icePhone,
+    'medicalNotes': medicalNotes,
+    'weightKg': weightKg,
+    'level': level?.name,
+  };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
-        name: j['name'] as String? ?? '',
-        phone: j['phone'] as String? ?? '',
-        coldSensitive: j['coldSensitive'] as bool? ?? false,
-        vegetarian: j['vegetarian'] as bool? ?? false,
-        vegan: j['vegan'] as bool? ?? false,
-        glutenFree: j['glutenFree'] as bool? ?? false,
-        lactoseFree: j['lactoseFree'] as bool? ?? false,
-        nutAllergy: j['nutAllergy'] as bool? ?? false,
-        prefersDehydrated: j['prefersDehydrated'] as bool? ?? false,
-        lightPacker: j['lightPacker'] as bool? ?? false,
-        extraComfort: j['extraComfort'] as bool? ?? false,
-        withDog: j['withDog'] as bool? ?? false,
-        ownsTent: j['ownsTent'] as bool? ?? true,
-        ownsStove: j['ownsStove'] as bool? ?? true,
-        preferredSeason:
-            TripSeason.values.asNameMap()[j['preferredSeason']],
-        iceName: j['iceName'] as String? ?? '',
-        icePhone: j['icePhone'] as String? ?? '',
-        medicalNotes: j['medicalNotes'] as String? ?? '',
-        weightKg: (j['weightKg'] as num?)?.toDouble() ?? 0,
-        level: switch (j['level'] as String?) {
-          'novice' => TourLevel.novice,
-          'intermediate' => TourLevel.intermediate,
-          'experienced' => TourLevel.experienced,
-          _ => null,
-        },
-      );
+    name: j['name'] as String? ?? '',
+    phone: j['phone'] as String? ?? '',
+    coldSensitive: j['coldSensitive'] as bool? ?? false,
+    vegetarian: j['vegetarian'] as bool? ?? false,
+    vegan: j['vegan'] as bool? ?? false,
+    glutenFree: j['glutenFree'] as bool? ?? false,
+    lactoseFree: j['lactoseFree'] as bool? ?? false,
+    nutAllergy: j['nutAllergy'] as bool? ?? false,
+    prefersDehydrated: j['prefersDehydrated'] as bool? ?? false,
+    lightPacker: j['lightPacker'] as bool? ?? false,
+    extraComfort: j['extraComfort'] as bool? ?? false,
+    withDog: j['withDog'] as bool? ?? false,
+    ownsTent: j['ownsTent'] as bool? ?? true,
+    ownsStove: j['ownsStove'] as bool? ?? true,
+    preferredSeason: TripSeason.values.asNameMap()[j['preferredSeason']],
+    iceName: j['iceName'] as String? ?? '',
+    icePhone: j['icePhone'] as String? ?? '',
+    medicalNotes: j['medicalNotes'] as String? ?? '',
+    weightKg: (j['weightKg'] as num?)?.toDouble() ?? 0,
+    level: switch (j['level'] as String?) {
+      'novice' => TourLevel.novice,
+      'intermediate' => TourLevel.intermediate,
+      'experienced' => TourLevel.experienced,
+      _ => null,
+    },
+  );
 
   String encode() => jsonEncode(toJson());
-  factory UserProfile.decode(String s) =>
-      UserProfile.fromJson(jsonDecode(s));
+  factory UserProfile.decode(String s) => UserProfile.fromJson(jsonDecode(s));
 }

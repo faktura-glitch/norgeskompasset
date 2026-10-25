@@ -9,17 +9,16 @@ class TrackPoint {
   const TrackPoint(this.lat, this.lon, this.elevation, this.time);
 
   Map<String, dynamic> toJson() => {
-        'lat': lat,
-        'lon': lon,
-        'ele': elevation,
-        'time': time.toIso8601String(),
-      };
+    'lat': lat,
+    'lon': lon,
+    'ele': elevation,
+    'time': time.toIso8601String(),
+  };
 
   factory TrackPoint.fromJson(Map<String, dynamic> j) => TrackPoint(
-        (j['lat'] as num).toDouble(),
-        (j['lon'] as num).toDouble(),
-        (j['ele'] as num?)?.toDouble(),
-        DateTime.tryParse(j['time']?.toString() ?? '') ??
-            DateTime.now(),
-      );
+    (j['lat'] as num).toDouble(),
+    (j['lon'] as num).toDouble(),
+    (j['ele'] as num?)?.toDouble(),
+    DateTime.tryParse(j['time']?.toString() ?? '') ?? DateTime.now(),
+  );
 }

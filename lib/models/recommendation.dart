@@ -2,10 +2,10 @@ enum RecommendationLevel { info, caution, serious }
 
 extension RecommendationLevelX on RecommendationLevel {
   String get label => switch (this) {
-        RecommendationLevel.info => 'Informasjon',
-        RecommendationLevel.caution => 'Vær oppmerksom',
-        RecommendationLevel.serious => 'Alvorlig – vurder tiltak',
-      };
+    RecommendationLevel.info => 'Informasjon',
+    RecommendationLevel.caution => 'Vær oppmerksom',
+    RecommendationLevel.serious => 'Alvorlig – vurder tiltak',
+  };
 }
 
 enum RecommendationStatus { active, dismissed, resolved }
@@ -48,32 +48,34 @@ class Recommendation {
   }) : createdAt = createdAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'level': level.name,
-        'title': title,
-        'observation': observation,
-        'why': why,
-        'action': action,
-        'stage': stageNumber,
-        'sourceNote': sourceNote,
-        'createdAt': createdAt.toIso8601String(),
-        'status': status.name,
-      };
+    'id': id,
+    'level': level.name,
+    'title': title,
+    'observation': observation,
+    'why': why,
+    'action': action,
+    'stage': stageNumber,
+    'sourceNote': sourceNote,
+    'createdAt': createdAt.toIso8601String(),
+    'status': status.name,
+  };
 
   factory Recommendation.fromJson(Map<String, dynamic> j) => Recommendation(
-        id: j['id'] as String,
-        level: RecommendationLevel.values.asNameMap()[j['level']] ??
-            RecommendationLevel.info,
-        title: j['title'] as String? ?? '',
-        observation: j['observation'] as String? ?? '',
-        why: j['why'] as String? ?? '',
-        action: j['action'] as String? ?? '',
-        stageNumber: j['stage'] as int?,
-        sourceNote: j['sourceNote'] as String?,
-        createdAt: j['createdAt'] != null
-            ? DateTime.tryParse(j['createdAt']) ?? DateTime.now()
-            : DateTime.now(),
-        status: RecommendationStatus.values.asNameMap()[j['status']] ??
-            RecommendationStatus.active,
-      );
+    id: j['id'] as String,
+    level:
+        RecommendationLevel.values.asNameMap()[j['level']] ??
+        RecommendationLevel.info,
+    title: j['title'] as String? ?? '',
+    observation: j['observation'] as String? ?? '',
+    why: j['why'] as String? ?? '',
+    action: j['action'] as String? ?? '',
+    stageNumber: j['stage'] as int?,
+    sourceNote: j['sourceNote'] as String?,
+    createdAt: j['createdAt'] != null
+        ? DateTime.tryParse(j['createdAt']) ?? DateTime.now()
+        : DateTime.now(),
+    status:
+        RecommendationStatus.values.asNameMap()[j['status']] ??
+        RecommendationStatus.active,
+  );
 }

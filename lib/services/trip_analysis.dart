@@ -46,7 +46,10 @@ class TripAnalysis {
   /// Summarizes forecast hours in [from, to) across given snapshots.
   /// Hours from multiple snapshot locations are merged (averaged per hour).
   static ConditionsSummary summarize(
-      Iterable<WeatherSnapshot> snapshots, DateTime from, DateTime to) {
+    Iterable<WeatherSnapshot> snapshots,
+    DateTime from,
+    DateTime to,
+  ) {
     final byHour = <int, List<WeatherHour>>{};
     for (final s in snapshots) {
       for (final h in s.hoursBetween(from, to)) {
@@ -63,9 +66,7 @@ class TripAnalysis {
       final hs = entry.value;
       double? avg(List<double?> v) {
         final vals = v.whereType<double>();
-        return vals.isEmpty
-            ? null
-            : vals.reduce((a, b) => a + b) / vals.length;
+        return vals.isEmpty ? null : vals.reduce((a, b) => a + b) / vals.length;
       }
 
       final t = avg(hs.map((h) => h.temperature).toList());
@@ -129,8 +130,12 @@ class TripAnalysis {
       return (from, from.add(const Duration(days: 1)));
     }
     final base = trip.startDate ?? DateTime.now();
-    final d = DateTime(base.year, base.month, base.day, 6)
-        .add(Duration(days: stage.number - 1));
+    final d = DateTime(
+      base.year,
+      base.month,
+      base.day,
+      6,
+    ).add(Duration(days: stage.number - 1));
     return (d, d.add(const Duration(days: 1)));
   }
 

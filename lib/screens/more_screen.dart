@@ -216,11 +216,7 @@ class MoreScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              icon,
-                              size: 18,
-                              color: NkColors.primaryBlue,
-                            ),
+                            Icon(icon, size: 18, color: NkColors.primaryBlue),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -486,9 +482,8 @@ class _ProfileCard extends StatelessWidget {
                       // section so the form opens with only Person
                       // and Sikkerhet visible.
                       Theme(
-                        data: Theme.of(ctx).copyWith(
-                          dividerColor: Colors.transparent,
-                        ),
+                        data: Theme.of(ctx)
+                            .copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           childrenPadding: EdgeInsets.zero,
@@ -1031,8 +1026,11 @@ class _DeleteAccountCardState extends State<_DeleteAccountCard> {
       onTap: _busy ? null : _confirm,
       child: Row(
         children: [
-          Icon(Icons.delete_forever_outlined,
-              size: 18, color: NkColors.dangerRed),
+          Icon(
+            Icons.delete_forever_outlined,
+            size: 18,
+            color: NkColors.dangerRed,
+          ),
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
@@ -1051,11 +1049,7 @@ class _DeleteAccountCardState extends State<_DeleteAccountCard> {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
-            Icon(
-              Icons.chevron_right,
-              color: NkColors.textSecondary,
-              size: 18,
-            ),
+            Icon(Icons.chevron_right, color: NkColors.textSecondary, size: 18),
         ],
       ),
     );

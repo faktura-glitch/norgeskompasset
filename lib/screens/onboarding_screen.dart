@@ -42,8 +42,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     (
       icon: Icons.school_outlined,
       title: 'Lær av turen',
-      text:
-          'Noter hva som fungerte, så blir neste tur enda bedre.',
+      text: 'Noter hva som fungerte, så blir neste tur enda bedre.',
     ),
   ];
 

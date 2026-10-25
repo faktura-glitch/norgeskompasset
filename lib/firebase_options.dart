@@ -20,8 +20,7 @@ class DefaultFirebaseOptions {
   /// Firebase is not configured.
   static bool get isConfigured => projectId.isNotEmpty;
 
-  static String get projectId =>
-      currentPlatformOrNull?.projectId ?? '';
+  static String get projectId => currentPlatformOrNull?.projectId ?? '';
 
   static FirebaseOptions? get currentPlatformOrNull {
     try {

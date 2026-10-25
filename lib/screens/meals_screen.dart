@@ -705,7 +705,7 @@ class _MealRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Rediger mÃ¥ltid',
+            tooltip: 'Rediger måltid',
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.edit_outlined, size: 16),
             onPressed: () => _edit(context),
@@ -721,7 +721,7 @@ class _MealRow extends StatelessWidget {
             onPressed: () => _swap(context),
           ),
           IconButton(
-            tooltip: 'Slett mÃ¥ltid',
+            tooltip: 'Slett måltid',
             visualDensity: VisualDensity.compact,
             icon: const Icon(
               Icons.delete_outline,

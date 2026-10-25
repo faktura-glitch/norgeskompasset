@@ -406,12 +406,14 @@ class TripRepository {
     try {
       // Serialize with trip sync so Firestore's native desktop plugin never
       // sees two overlapping writes from this repository.
-      await _serialize(() => shared.doc(code).set({
-        'data': jsonEncode(j),
-        'name': trip.name,
-        'owner': _uid,
-        'updatedAt': trip.updatedAt.toIso8601String(),
-      }));
+      await _serialize(
+        () => shared.doc(code).set({
+          'data': jsonEncode(j),
+          'name': trip.name,
+          'owner': _uid,
+          'updatedAt': trip.updatedAt.toIso8601String(),
+        }),
+      );
       trip.shareCode = code;
       return code;
     } catch (_) {
@@ -494,8 +496,7 @@ class TripRepository {
       return [
         for (final d in snap.docs)
           if (CatalogTrip.fromJson(d.data()) case final e)
-            if (e.reportedBy.length < CatalogTrip.reportHideThreshold)
-              e,
+            if (e.reportedBy.length < CatalogTrip.reportHideThreshold) e,
       ];
     } catch (_) {
       return const [];

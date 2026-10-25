@@ -38,16 +38,16 @@ abstract final class PlanningContextBuilder {
       );
       // A fresh point at the end of a trip does not cover the other
       // stages. Check the relevant window for every stage instead.
-      bool covers(Iterable<WeatherSnapshot> candidates,
-          DateTime from, DateTime to) =>
-          candidates.any((s) {
-            final hours = s.hoursBetween(from, to);
-            return hours.isNotEmpty &&
-                !hours.first.time.isAfter(from.add(const Duration(hours: 6))) &&
-                !hours.last.time.isBefore(
-                  to.subtract(const Duration(hours: 6)),
-                );
-          });
+      bool covers(
+        Iterable<WeatherSnapshot> candidates,
+        DateTime from,
+        DateTime to,
+      ) => candidates.any((s) {
+        final hours = s.hoursBetween(from, to);
+        return hours.isNotEmpty &&
+            !hours.first.time.isAfter(from.add(const Duration(hours: 6))) &&
+            !hours.last.time.isBefore(to.subtract(const Duration(hours: 6)));
+      });
       bool coversDates;
       if (trip.stages.isNotEmpty) {
         coversDates = trip.stages.every((stage) {
@@ -62,8 +62,12 @@ abstract final class PlanningContextBuilder {
         coversDates = covers(
           snapshots,
           DateTime(start.year, start.month, start.day, 6),
-          DateTime(end.year, end.month, end.day, 6)
-              .add(const Duration(days: 1)),
+          DateTime(
+            end.year,
+            end.month,
+            end.day,
+            6,
+          ).add(const Duration(days: 1)),
         );
       }
       weatherQuality = stale

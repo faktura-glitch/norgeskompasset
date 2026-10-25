@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+
 import '../core/http_identity.dart';
 import 'weather_service.dart' show ServiceException, describeNetworkError;
 
@@ -24,26 +26,29 @@ class PlaceResult {
 /// is debounced by callers).
 class GeocodingService {
   static const _endpoint = 'https://nominatim.openstreetmap.org/search';
-  static const _reverseEndpoint =
-      'https://nominatim.openstreetmap.org/reverse';
+  static const _reverseEndpoint = 'https://nominatim.openstreetmap.org/reverse';
 
   /// Nearest place name for a tapped map point, or null when the lookup
   /// fails - callers keep their generic label then.
   Future<String?> reverse(LatLng point) async {
-    final uri = Uri.parse(_reverseEndpoint).replace(queryParameters: {
-      'format': 'jsonv2',
-      'lat': point.latitude.toStringAsFixed(5),
-      'lon': point.longitude.toStringAsFixed(5),
-      'zoom': '15',
-      'accept-language': 'nb',
-    });
+    final uri = Uri.parse(_reverseEndpoint).replace(
+      queryParameters: {
+        'format': 'jsonv2',
+        'lat': point.latitude.toStringAsFixed(5),
+        'lon': point.longitude.toStringAsFixed(5),
+        'zoom': '15',
+        'accept-language': 'nb',
+      },
+    );
     try {
-      final res = await http.get(uri, headers: {
-        if (!kIsWeb) 'User-Agent': kUserAgent,
-      }).timeout(const Duration(seconds: 8));
+      final res = await http
+          .get(uri, headers: {if (!kIsWeb) 'User-Agent': kUserAgent})
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body);
-      return body is Map ? placeNameFrom(Map<String, dynamic>.from(body)) : null;
+      return body is Map
+          ? placeNameFrom(Map<String, dynamic>.from(body))
+          : null;
     } catch (_) {
       return null;
     }
@@ -75,21 +80,24 @@ class GeocodingService {
 
   Future<List<PlaceResult>> search(String query) async {
     if (query.trim().length < 2) return [];
-    final uri = Uri.parse(_endpoint).replace(queryParameters: {
-      'format': 'jsonv2',
-      'q': query,
-      'countrycodes': 'no',
-      'limit': '6',
-      'accept-language': 'nb',
-    });
+    final uri = Uri.parse(_endpoint).replace(
+      queryParameters: {
+        'format': 'jsonv2',
+        'q': query,
+        'countrycodes': 'no',
+        'limit': '6',
+        'accept-language': 'nb',
+      },
+    );
     http.Response res;
     try {
-      res = await http.get(uri, headers: {
-        if (!kIsWeb) 'User-Agent': kUserAgent,
-      }).timeout(const Duration(seconds: 12));
+      res = await http
+          .get(uri, headers: {if (!kIsWeb) 'User-Agent': kUserAgent})
+          .timeout(const Duration(seconds: 12));
     } catch (e) {
       throw ServiceException(
-          'Fikk ikke kontakt med stedssøket (${describeNetworkError(e)}).');
+        'Fikk ikke kontakt med stedssøket (${describeNetworkError(e)}).',
+      );
     }
     if (res.statusCode != 200) {
       throw ServiceException('Stedssøk feilet (HTTP ${res.statusCode}).');

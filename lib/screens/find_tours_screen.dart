@@ -62,181 +62,205 @@ class _FindToursScreenState extends State<FindToursScreen> {
     var activity = entry.activity;
     var season = entry.seasons.firstOrNull ?? TripSeason.summer;
     var accommodation = entry.accommodation;
-    var carry =
-        activity == TripActivity.paddle ? CarryMode.canoe : CarryMode.backpack;
+    var carry = activity == TripActivity.paddle
+        ? CarryMode.canoe
+        : CarryMode.backpack;
     var participants = 1;
-    final selected = await showDialog<
-        (DateTime, int, TripActivity, TripSeason, AccommodationType, CarryMode, int)>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: Text(entry.name),
-          content: SizedBox(
-            width: 520,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(entry.description),
-                  Text(
-                    '${entry.region} · ${fmtKm(entry.route.distanceMeters)}',
-                  ),
-                  Text(entry.route.sourceLabel),
-                  const SizedBox(height: 8),
-                  _RouteSketch(route: entry.route),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Brukerpublisert rute, ikke kontrollert av NorgesKompasset. Kontroller trasé, forhold og varighet før avreise.',
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+    final selected =
+        await showDialog<
+          (
+            DateTime,
+            int,
+            TripActivity,
+            TripSeason,
+            AccommodationType,
+            CarryMode,
+            int,
+          )
+        >(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+              title: Text(entry.name),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Aktivitet:'),
-                      const SizedBox(width: 12),
-                      DropdownButton<TripActivity>(
-                        value: activity,
-                        onChanged: (v) => update(() {
-                          activity = v ?? activity;
-                          if (activity == TripActivity.paddle) {
-                            carry = CarryMode.canoe;
-                          } else if (carry == CarryMode.canoe) {
-                            carry = CarryMode.backpack;
-                          }
-                        }),
-                        items: [
-                          for (final a in TripActivity.values)
-                            DropdownMenuItem(value: a, child: Text(a.label)),
+                      Text(entry.description),
+                      Text(
+                        '${entry.region} · ${fmtKm(entry.route.distanceMeters)}',
+                      ),
+                      Text(entry.route.sourceLabel),
+                      const SizedBox(height: 8),
+                      _RouteSketch(route: entry.route),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Brukerpublisert rute, ikke kontrollert av NorgesKompasset. Kontroller trasé, forhold og varighet før avreise.',
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Text('Aktivitet:'),
+                          const SizedBox(width: 12),
+                          DropdownButton<TripActivity>(
+                            value: activity,
+                            onChanged: (v) => update(() {
+                              activity = v ?? activity;
+                              if (activity == TripActivity.paddle) {
+                                carry = CarryMode.canoe;
+                              } else if (carry == CarryMode.canoe) {
+                                carry = CarryMode.backpack;
+                              }
+                            }),
+                            items: [
+                              for (final a in TripActivity.values)
+                                DropdownMenuItem(
+                                  value: a,
+                                  child: Text(a.label),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      const Text('Antall dager:'),
-                      IconButton(
-                        tooltip: 'Færre dager',
-                        onPressed: days <= 1
-                            ? null
-                            : () => update(() => days--),
-                        icon: const Icon(Icons.remove_circle_outline),
+                      Row(
+                        children: [
+                          const Text('Antall dager:'),
+                          IconButton(
+                            tooltip: 'Færre dager',
+                            onPressed: days <= 1
+                                ? null
+                                : () => update(() => days--),
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
+                          Text('$days'),
+                          IconButton(
+                            tooltip: 'Flere dager',
+                            onPressed: days >= 14
+                                ? null
+                                : () => update(() => days++),
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
                       ),
-                      Text('$days'),
-                      IconButton(
-                        tooltip: 'Flere dager',
-                        onPressed: days >= 14
-                            ? null
-                            : () => update(() => days++),
-                        icon: const Icon(Icons.add_circle_outline),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<TripSeason>(
+                        initialValue: season,
+                        decoration: const InputDecoration(
+                          labelText: 'Sesong for pakkelisten',
+                        ),
+                        items: [
+                          for (final s in TripSeason.values)
+                            DropdownMenuItem(value: s, child: Text(s.label)),
+                        ],
+                        onChanged: (v) => update(() => season = v ?? season),
+                      ),
+                      DropdownButtonFormField<AccommodationType>(
+                        initialValue: accommodation,
+                        decoration: const InputDecoration(
+                          labelText: 'Overnatting',
+                        ),
+                        items: [
+                          for (final a in AccommodationType.values)
+                            DropdownMenuItem(value: a, child: Text(a.label)),
+                        ],
+                        onChanged: (v) =>
+                            update(() => accommodation = v ?? accommodation),
+                      ),
+                      DropdownButtonFormField<CarryMode>(
+                        key: ValueKey('carry-${carry.name}'),
+                        initialValue: carry,
+                        decoration: const InputDecoration(labelText: 'Bæring'),
+                        items: [
+                          for (final mode in CarryMode.values)
+                            DropdownMenuItem(
+                              value: mode,
+                              child: Text(mode.label),
+                            ),
+                        ],
+                        onChanged: (v) => update(() => carry = v ?? carry),
+                      ),
+                      Row(
+                        children: [
+                          const Text('Deltakere:'),
+                          IconButton(
+                            tooltip: 'Færre deltakere',
+                            onPressed: participants <= 1
+                                ? null
+                                : () => update(() => participants--),
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
+                          Text('$participants'),
+                          IconButton(
+                            tooltip: 'Flere deltakere',
+                            onPressed: participants >= 20
+                                ? null
+                                : () => update(() => participants++),
+                            icon: const Icon(Icons.add_circle_outline),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        'Valgene brukes før pakkeliste og matplan opprettes. '
+                        'Kontroller vær og forhold før avreise.',
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.calendar_month),
+                        label: Text(
+                          date == null
+                              ? 'Velg startdato'
+                              : '${date!.day}.${date!.month}.${date!.year}',
+                        ),
+                        onPressed: () async {
+                          final now = DateUtils.dateOnly(DateTime.now());
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: date ?? now,
+                            firstDate: now,
+                            lastDate: DateTime(now.year + 3),
+                          );
+                          if (picked != null && context.mounted) {
+                            update(() => date = picked);
+                          }
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<TripSeason>(
-                    initialValue: season,
-                    decoration: const InputDecoration(
-                      labelText: 'Sesong for pakkelisten',
-                    ),
-                    items: [
-                      for (final s in TripSeason.values)
-                        DropdownMenuItem(value: s, child: Text(s.label)),
-                    ],
-                    onChanged: (v) => update(() => season = v ?? season),
-                  ),
-                  DropdownButtonFormField<AccommodationType>(
-                    initialValue: accommodation,
-                    decoration: const InputDecoration(
-                      labelText: 'Overnatting',
-                    ),
-                    items: [
-                      for (final a in AccommodationType.values)
-                        DropdownMenuItem(value: a, child: Text(a.label)),
-                    ],
-                    onChanged: (v) =>
-                        update(() => accommodation = v ?? accommodation),
-                  ),
-                  DropdownButtonFormField<CarryMode>(
-                    key: ValueKey('carry-${carry.name}'),
-                    initialValue: carry,
-                    decoration: const InputDecoration(labelText: 'Bæring'),
-                    items: [
-                      for (final mode in CarryMode.values)
-                        DropdownMenuItem(value: mode, child: Text(mode.label)),
-                    ],
-                    onChanged: (v) => update(() => carry = v ?? carry),
-                  ),
-                  Row(
-                    children: [
-                      const Text('Deltakere:'),
-                      IconButton(
-                        tooltip: 'Færre deltakere',
-                        onPressed: participants <= 1
-                            ? null
-                            : () => update(() => participants--),
-                        icon: const Icon(Icons.remove_circle_outline),
-                      ),
-                      Text('$participants'),
-                      IconButton(
-                        tooltip: 'Flere deltakere',
-                        onPressed: participants >= 20
-                            ? null
-                            : () => update(() => participants++),
-                        icon: const Icon(Icons.add_circle_outline),
-                      ),
-                    ],
-                  ),
-                  const Text(
-                    'Valgene brukes før pakkeliste og matplan opprettes. '
-                    'Kontroller vær og forhold før avreise.',
-                  ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.calendar_month),
-                    label: Text(
-                      date == null
-                          ? 'Velg startdato'
-                          : '${date!.day}.${date!.month}.${date!.year}',
-                    ),
-                    onPressed: () async {
-                      final now = DateUtils.dateOnly(DateTime.now());
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: date ?? now,
-                        firstDate: now,
-                        lastDate: DateTime(now.year + 3),
-                      );
-                      if (picked != null && context.mounted) {
-                        update(() => date = picked);
-                      }
-                    },
-                  ),
-                ],
+                ),
               ),
+              actions: [
+                TextButton.icon(
+                  icon: const Icon(Icons.flag_outlined, size: 16),
+                  label: const Text('Rapporter'),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    _reportEntry(entry);
+                  },
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Avbryt'),
+                ),
+                FilledButton(
+                  onPressed: date == null
+                      ? null
+                      : () => Navigator.pop(dialogContext, (
+                          date!,
+                          days,
+                          activity,
+                          season,
+                          accommodation,
+                          carry,
+                          participants,
+                        )),
+                  child: const Text('Opprett eget utkast'),
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton.icon(
-              icon: const Icon(Icons.flag_outlined, size: 16),
-              label: const Text('Rapporter'),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _reportEntry(entry);
-              },
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Avbryt'),
-            ),
-            FilledButton(
-              onPressed: date == null
-                  ? null
-                  : () => Navigator.pop(dialogContext,
-                      (date!, days, activity, season, accommodation, carry, participants)),
-              child: const Text('Opprett eget utkast'),
-            ),
-          ],
-        ),
-      ),
-    );
+        );
     if (selected == null || !mounted) return;
     setState(() {
       _saving = true;

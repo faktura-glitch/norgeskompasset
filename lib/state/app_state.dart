@@ -106,9 +106,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       onPosition: _recordPosition,
       onFlush: _flushTrackedTrip,
       routeProvider: () {
-        final trip = trips
-            .where((t) => t.id == tracking.tripId)
-            .firstOrNull;
+        final trip = trips.where((t) => t.id == tracking.tripId).firstOrNull;
         final route = trip?.route;
         // Only real trail geometry may raise deviation alerts —
         // estimated or imported routes are not verified corridors.
