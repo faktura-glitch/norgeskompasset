@@ -4,8 +4,10 @@ import 'trip.dart';
 
 /// Quality of an externally fetched input (weather, avalanche warnings).
 /// [partial] means data exists but does not cover the whole trip window;
+/// [beyondHorizon] means the trip starts after the forecast ends (MET
+/// only looks ~9 days ahead) — nothing is wrong, it is just too early;
 /// [stale] means it is old enough that a refresh is due.
-enum DataQuality { good, partial, stale, missing }
+enum DataQuality { good, partial, beyondHorizon, stale, missing }
 
 /// Why the plan does or does not carry avalanche gear — the basis is
 /// shown to the user so a guess is never presented as an assessment.
@@ -104,7 +106,8 @@ class PlanningContext {
 
   String get weatherLabel => switch (weatherQuality) {
     DataQuality.good => 'Prognose oppdatert',
-    DataQuality.partial => 'Prognose dekker ikke hele turen',
+    DataQuality.partial => 'Varsel bare for første del av turen',
+    DataQuality.beyondHorizon => 'Turen er lenger frem enn varselet rekker',
     DataQuality.stale => 'Prognose bør oppdateres',
     DataQuality.missing => 'Ingen prognose hentet',
   };

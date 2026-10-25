@@ -70,10 +70,25 @@ abstract final class PlanningContextBuilder {
           ).add(const Duration(days: 1)),
         );
       }
+      // A forecast that ends before the trip even starts is not a gap in
+      // the data — MET only looks ~9 days ahead. Say so instead of
+      // "doesn't cover the trip", which reads like an error.
+      final start = trip.startDate;
+      final beyondHorizon =
+          start != null &&
+          snapshots.every(
+            (s) =>
+                s.hours.isEmpty ||
+                s.hours.last.time.isBefore(
+                  DateTime(start.year, start.month, start.day, 6),
+                ),
+          );
       weatherQuality = stale
           ? DataQuality.stale
           : coversDates
           ? DataQuality.good
+          : beyondHorizon
+          ? DataQuality.beyondHorizon
           : DataQuality.partial;
     }
 
@@ -118,8 +133,14 @@ abstract final class PlanningContextBuilder {
         checks.add('Prognosen er hentet for over 12 timer siden – oppdater.');
       case DataQuality.partial:
         checks.add(
-          'Værdata dekker ikke hele turen – hent på nytt eller sjekk Yr '
-          'nærmere avreise.',
+          'Varselet dekker bare de første dagene av turen – hent det igjen '
+          'nærmere avreise for resten.',
+        );
+      case DataQuality.beyondHorizon:
+        checks.add(
+          'Værvarselet går bare ca. 9 dager frem og rekker ikke til turen '
+          'ennå. Listen bygger på sesongen – hent været igjen nærmere '
+          'avreise.',
         );
       case DataQuality.good:
         break;
