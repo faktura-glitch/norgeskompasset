@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../core/geo.dart';
+import '../models/route_models.dart';
 
 enum TrackingPhase { idle, starting, active, paused, stopping, error }
 
@@ -69,12 +73,30 @@ class TrackingController extends ChangeNotifier {
     required this.source,
     required this.onPosition,
     required this.onFlush,
+    this.routeProvider,
+    this.onOffRouteAlert,
   });
+
+  /// Route geometry to measure deviation against (null = alerts off,
+  /// e.g. for estimated or imported routes that are not verified
+  /// navigation corridors).
+  final List<RoutePoint>? Function()? routeProvider;
+
+  /// Fired when the hiker has been off-route for two consecutive
+  /// fixes, throttled to once per [_alertCooldown].
+  final void Function(double deviationMeters)? onOffRouteAlert;
+
+  static const offRouteThresholdMeters = 80.0;
+  static const _alertCooldown = Duration(minutes: 5);
 
   TrackingPhase phase = TrackingPhase.idle;
   String? tripId;
   Position? position;
   String? error;
+  double? deviationMeters;
+  bool offRoute = false;
+  int _offRouteCount = 0;
+  DateTime? _lastOffRouteAlert;
   StreamSubscription<Position>? _subscription;
   Future<void> _writes = Future.value();
   int _generation = 0;
@@ -96,6 +118,10 @@ class TrackingController extends ChangeNotifier {
     tripId = id;
     phase = TrackingPhase.starting;
     error = null;
+    _offRouteCount = 0;
+    offRoute = false;
+    deviationMeters = null;
+    _lastOffRouteAlert = null;
     _notify();
     try {
       await source.prepare();
@@ -109,6 +135,7 @@ class TrackingController extends ChangeNotifier {
         (next) {
           if (!_valid(generation) || !isActive) return;
           position = next;
+          _updateDeviation(next);
           _writes = _writes
               .then((_) async {
                 if (!_disposed) await onPosition(id, next);
@@ -137,6 +164,39 @@ class TrackingController extends ChangeNotifier {
       _notify();
     } catch (e) {
       if (_valid(generation)) _fail('Kunne ikke starte GPS-sporing: $e');
+    }
+  }
+
+  /// Off-route detection lives here — not in the UI — so the alert
+  /// also fires while the screen is off (the Android foreground
+  /// service keeps the stream alive). Two consecutive fixes beyond
+  /// the threshold are required; a single bad fix is noise.
+  void _updateDeviation(Position pos) {
+    final route = routeProvider?.call();
+    if (route == null || route.isEmpty) {
+      _offRouteCount = 0;
+      offRoute = false;
+      deviationMeters = null;
+      return;
+    }
+    final dev = distanceToRouteMeters(
+      route,
+      LatLng(pos.latitude, pos.longitude),
+    );
+    deviationMeters = dev;
+    if (dev > offRouteThresholdMeters) {
+      _offRouteCount++;
+    } else {
+      _offRouteCount = 0;
+    }
+    offRoute = _offRouteCount >= 2;
+    if (offRoute) {
+      final now = DateTime.now();
+      final last = _lastOffRouteAlert;
+      if (last == null || now.difference(last) >= _alertCooldown) {
+        _lastOffRouteAlert = now;
+        onOffRouteAlert?.call(dev);
+      }
     }
   }
 

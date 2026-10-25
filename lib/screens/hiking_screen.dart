@@ -52,16 +52,14 @@ class _HikingScreenState extends State<HikingScreen> {
   final _mapCtrl = MapController();
   bool _showMap = true;
   bool _mapReady = false;
-  DateTime? _lastCheckedFix;
+
   bool _followUser = true;
   bool _tileFailed = false;
   String _mapUrl = TileCache.urlTemplate;
   bool _mapExpanded = false;
 
-  // Off-route detection: require ≥2 consecutive readings beyond the
-  // threshold so a single bad GPS fix doesn't raise a false alarm.
-  static const _offRouteMeters = 80.0;
-  int _offRouteCount = 0;
+  // Off-route state mirrors TrackingController (which computes it
+  // in the background so alerts also fire with the screen off).
   bool _offRoute = false;
   double? _deviationMeters;
   late final AppState _state;
@@ -173,9 +171,10 @@ class _HikingScreenState extends State<HikingScreen> {
       _position = pos;
       _gpsAccurate = pos != null && pos.accuracy <= 50;
       _gpsMessage = controller.error;
+      _offRoute = controller.offRoute;
+      _deviationMeters = controller.deviationMeters;
     });
     if (pos == null || !_tracking) return;
-    _handlePosition(pos);
     if (_showMap && _mapReady && _followUser) {
       _mapCtrl.move(LatLng(pos.latitude, pos.longitude), _mapCtrl.camera.zoom);
     }
@@ -189,33 +188,6 @@ class _HikingScreenState extends State<HikingScreen> {
         pos.heading >= 0) {
       _mapHeading = pos.heading;
       _mapCtrl.rotate(_mapHeading);
-    }
-  }
-
-  /// Records the position into the trip's track log and checks
-  /// whether the hiker has strayed from the planned route.
-  void _handlePosition(Position pos) {
-    final trip = _trackingTrip;
-    if (trip == null || _lastCheckedFix == pos.timestamp) return;
-    _lastCheckedFix = pos.timestamp;
-    final here = LatLng(pos.latitude, pos.longitude);
-
-    // Do not compare a GPS fix with estimated or imported geometry:
-    // a straight sketch is not a verified navigation corridor.
-    final route = trip.route;
-    if (route != null && route.supportsDeviationAlerts) {
-      final dev = distanceToRouteMeters(route.points, here);
-      if (dev > _offRouteMeters) {
-        _offRouteCount++;
-      } else {
-        _offRouteCount = 0;
-      }
-      _offRoute = _offRouteCount >= 2;
-      _deviationMeters = dev;
-    } else {
-      _offRouteCount = 0;
-      _offRoute = false;
-      _deviationMeters = null;
     }
   }
 

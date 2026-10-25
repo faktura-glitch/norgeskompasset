@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart'
     show ThemeMode, WidgetsBinding, WidgetsBindingObserver, AppLifecycleState;
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
@@ -104,6 +105,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       source: trackingSource ?? GeolocatorTrackingSource(),
       onPosition: _recordPosition,
       onFlush: _flushTrackedTrip,
+      routeProvider: () {
+        final trip = trips
+            .where((t) => t.id == tracking.tripId)
+            .firstOrNull;
+        final route = trip?.route;
+        // Only real trail geometry may raise deviation alerts —
+        // estimated or imported routes are not verified corridors.
+        return route != null && route.supportsDeviationAlerts
+            ? route.points
+            : null;
+      },
+      onOffRouteAlert: (_) => unawaited(HapticFeedback.vibrate()),
     );
   }
 
