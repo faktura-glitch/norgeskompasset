@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norgeskompasset/core/format.dart';
 import 'package:norgeskompasset/models/route_models.dart';
+import 'package:norgeskompasset/core/daylight.dart';
 import 'package:norgeskompasset/models/weather.dart';
 import 'package:norgeskompasset/services/geocoding_service.dart';
 
@@ -99,6 +100,15 @@ void main() {
       final best = bestHikingDay(hours);
       expect(best?.day, DateTime(2026, 6, 2));
       expect(bestHikingDay(hours.sublist(0, 8)), isNull);
+    });
+  });
+
+  group('sunsetAt', () {
+    test('Oslo midsummer sunset is late evening', () {
+      final sunset = sunsetAt(DateTime(2026, 6, 21), 59.91, 10.75);
+      expect(sunset, isNotNull);
+      // True value ≈22:44 CEST ≈20:44 UTC; allow a wide margin.
+      expect(sunset!.toUtc().hour, inInclusiveRange(19, 22));
     });
   });
 }

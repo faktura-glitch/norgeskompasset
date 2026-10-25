@@ -11,6 +11,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../core/daylight.dart';
 import '../core/format.dart';
 import '../core/geo.dart';
 import '../core/theme.dart';
@@ -1018,6 +1019,44 @@ class _StageCard extends StatelessWidget {
               ),
             ],
           ),
+          if (position != null &&
+              stageRemaining != null &&
+              position!.speed > 0.5) ...[
+            Builder(
+              builder: (_) {
+                final eta = DateTime.now().add(
+                  Duration(
+                    minutes: (stageRemaining! /
+                            1000 /
+                            (position!.speed * 3.6) *
+                            60)
+                        .round(),
+                  ),
+                );
+                final sunset = sunsetAt(
+                  DateTime.now(),
+                  position!.latitude,
+                  position!.longitude,
+                );
+                if (sunset == null || !eta.isAfter(sunset)) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Beregnet fremme ${fmtTime(eta)} – etter solnedgang '
+                    '${fmtTime(sunset)}. Vurder å snu eller velge en '
+                    'kortere etappe.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.amber,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
           if (stageProgress != null) ...[
             const SizedBox(height: 10),
             NkProgress(stageProgress, color: Colors.white, height: 5),
