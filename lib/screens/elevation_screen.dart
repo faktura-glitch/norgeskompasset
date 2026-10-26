@@ -115,8 +115,8 @@ class _AnalysisBody extends StatelessWidget {
                   height: wide ? 260 : 200,
                   child: ElevationChart(
                     points: route.points,
-                    stageBoundaries: _stageBoundaries(),
-                    straightKm: _straightKmRanges(route),
+                    stageBoundaries: stageBoundaryKms(trip),
+                    straightKm: straightKmRanges(route),
                     // Tap a point in the profile → open the map
                     // centered on that exact route position.
                     onTapPoint: (ll) => showModalBottomSheet<void>(
@@ -203,29 +203,30 @@ class _AnalysisBody extends StatelessWidget {
       ],
     );
   }
+}
 
-  List<double> _stageBoundaries() {
-    // Cumulative km where each stage ends (excluding the last).
-    final out = <double>[];
-    var acc = 0.0;
-    for (var i = 0; i < trip.stages.length - 1; i++) {
-      acc += trip.stages[i].distanceMeters / 1000;
-      out.add(acc);
-    }
-    return out;
+/// Cumulative km where each stage ends (excluding the last) — drawn
+/// as stage markers in the elevation profile.
+List<double> stageBoundaryKms(Trip trip) {
+  final out = <double>[];
+  var acc = 0.0;
+  for (var i = 0; i < trip.stages.length - 1; i++) {
+    acc += trip.stages[i].distanceMeters / 1000;
+    out.add(acc);
   }
+  return out;
+}
 
-  /// Km-positions of straight-line (estimated) stretches, so the
-  /// profile shades them instead of presenting them as trail data.
-  List<(double, double)> _straightKmRanges(HikingRoute route) {
-    if (route.straightRanges.isEmpty) return const [];
-    final cum = cumulativeDistances(route.points);
-    final last = route.points.length - 1;
-    return [
-      for (final r in route.straightRanges)
-        (cum[r.start.clamp(0, last)] / 1000, cum[r.end.clamp(0, last)] / 1000),
-    ];
-  }
+/// Km-positions of straight-line (estimated) stretches, so the
+/// profile shades them instead of presenting them as trail data.
+List<(double, double)> straightKmRanges(HikingRoute route) {
+  if (route.straightRanges.isEmpty) return const [];
+  final cum = cumulativeDistances(route.points);
+  final last = route.points.length - 1;
+  return [
+    for (final r in route.straightRanges)
+      (cum[r.start.clamp(0, last)] / 1000, cum[r.end.clamp(0, last)] / 1000),
+  ];
 }
 
 /// Interactive elevation line chart. Tapping/dragging shows the

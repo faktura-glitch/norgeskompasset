@@ -68,5 +68,11 @@ abstract final class StageBuilder {
       stages.add(stage);
     }
     trip.stages = stages;
+    // Route totals are derived from the same points as the stages, so
+    // the summary card and the stage list can never disagree.
+    final total = elevationStats(route.points);
+    route.totalAscent = total.ascent;
+    route.totalDescent = total.descent;
+    route.highestPoint = total.highest;
   }
 }

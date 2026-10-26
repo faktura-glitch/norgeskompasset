@@ -27,6 +27,7 @@ import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
 import '../widgets/trip_details_sheet.dart';
+import 'elevation_screen.dart';
 
 /// Kartverket topo tiles (free) with OSM fallback.
 const _kartverketTopo =
@@ -3140,6 +3141,29 @@ class _RouteSummary extends StatelessWidget {
                 ),
             ],
           ),
+          if (hasElevation && !loadingElevation) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 150,
+              child: ElevationChart(
+                points: route.points,
+                stageBoundaries: stageBoundaryKms(trip),
+                straightKm: straightKmRanges(route),
+                height: 150,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ElevationScreen()),
+                ),
+                icon: const Icon(Icons.show_chart, size: 16),
+                label: const Text('Høydeprofil og etapper'),
+              ),
+            ),
+          ],
           if (!showElevation) ...[
             const SizedBox(height: 10),
             Row(
