@@ -1,3 +1,4 @@
+import '../core/geo.dart';
 import '../models/gear.dart';
 import '../models/planning_context.dart';
 import '../models/profile.dart';
@@ -41,8 +42,7 @@ abstract final class PlanningContextBuilder {
     // ── Route facts ────────────────────────────────────────
     double? coverage;
     if (hasRoute && route.points.isNotEmpty) {
-      final withEle = route.points.where((p) => p.elevation != null).length;
-      coverage = withEle / route.points.length;
+      coverage = elevationCoverage(route.points);
     }
     final estimatedLegs =
         hasRoute &&

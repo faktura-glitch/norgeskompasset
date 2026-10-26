@@ -119,6 +119,31 @@ double estimateHikingMinutes(
   return minutes * pace.timeFactor * (withChildren ? 1.3 : 1.0);
 }
 
+/// Share of the route length (0–1) that has elevation data, measured
+/// along the distance — not by counting points. Elevation is fetched
+/// for an even sample of ~200 points and the rest are left empty on
+/// purpose, so a point count would call a fully covered route "61 %".
+/// A stretch between two elevated points counts as covered unless the
+/// gap is implausibly long (over 500 m or 2 % of the route).
+double elevationCoverage(List<RoutePoint> points) {
+  if (points.length < 2) return 0;
+  final cum = cumulativeDistances(points);
+  final total = cum.last;
+  if (total <= 0) return 0;
+  final maxGap = max(500.0, total * 0.02);
+  var covered = 0.0;
+  int? last;
+  for (var i = 0; i < points.length; i++) {
+    if (points[i].elevation == null) continue;
+    if (last != null) {
+      final gap = cum[i] - cum[last];
+      if (gap <= maxGap) covered += gap;
+    }
+    last = i;
+  }
+  return (covered / total).clamp(0.0, 1.0);
+}
+
 /// Days a trip should be spread over so no day exceeds a sensible
 /// moving-time budget: 8 h for adults, 6 h with children. Breaks come
 /// on top, so the budget is deliberately conservative. Returns 1 when
