@@ -525,6 +525,34 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     }
   }
 
+  /// Swaps direction: the goal becomes the start and vice versa, via
+  /// points in reverse order. A straight-leg flag belongs to the leg
+  /// *ending* at a point, so it moves one step along with its leg.
+  Future<void> _reverseRoute() async {
+    if (_anchors.length < 2) return;
+    final reversed = _anchors.reversed.toList();
+    final flags = [for (final w in reversed) w.straightLeg];
+    for (var i = 0; i < reversed.length; i++) {
+      reversed[i].straightLeg = i == 0 ? false : flags[i - 1];
+    }
+    reversed.first.type = WaypointType.start;
+    reversed.last.type = WaypointType.end;
+    for (final w in [reversed.first, reversed.last]) {
+      if (w.name == 'Start (A)') {
+        w.name = 'Mål (B)';
+      } else if (w.name == 'Mål (B)') {
+        w.name = 'Start (A)';
+      }
+    }
+    setState(() {
+      _anchors
+        ..clear()
+        ..addAll(reversed);
+      _routeDirty = true;
+    });
+    await _calculateRoute();
+  }
+
   Future<void> _calculateRoute() async {
     final state = context.read<AppState>();
     if (_anchors.length < 2 || state.busy) return;
@@ -1295,6 +1323,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                           _anchors.removeLast();
                           _routeDirty = true;
                         });
+                      case 'reverse':
+                        _reverseRoute();
                       case 'import':
                         _importGpx();
                       case 'export':
@@ -1327,6 +1357,17 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         dense: true,
                         leading: Icon(Icons.undo),
                         title: Text('Angre siste punkt'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'reverse',
+                      enabled:
+                          _anchors.length >= 2 &&
+                          !context.read<AppState>().busy,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.swap_vert),
+                        title: Text('Snu ruten (bytt start og mål)'),
                       ),
                     ),
                     const PopupMenuDivider(),
@@ -1636,6 +1677,16 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 enabled: _anchors.length >= 2 && !context.read<AppState>().busy,
                 onTap: _calculateRoute,
               ),
+              if (route?.hasRoute == true)
+                FilterChip(
+                  avatar: const Icon(Icons.swap_horiz, size: 16),
+                  label: const Text('Tur-retur'),
+                  tooltip: 'Samme vei tilbake – distanse, tid, høydeprofil og pakkeliste gjelder hele turen',
+                  selected: route!.outAndBack,
+                  onSelected: context.read<AppState>().busy
+                      ? null
+                      : (v) => context.read<AppState>().setOutAndBack(trip, v),
+                ),
               if (_showAdvanced) ...[
                 _actionBtn(
                   icon: Icons.splitscreen_outlined,
@@ -3101,7 +3152,7 @@ class _RouteSummary extends StatelessWidget {
             crossAxisSpacing: 8,
             children: [
               InfoTile(
-                'Distanse',
+                route.outAndBack ? 'Distanse tur-retur' : 'Distanse',
                 fmtKm(route.distanceMeters),
                 icon: Icons.route,
               ),

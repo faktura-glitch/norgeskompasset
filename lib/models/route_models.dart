@@ -131,6 +131,10 @@ class HikingRoute {
   /// imported routes.
   List<({int start, int end})> straightRanges;
 
+  /// Index of the turning point when the route is «tur-retur» (the
+  /// points after it mirror the way out). Null for one-way routes.
+  int? turnIndex;
+
   HikingRoute({
     this.points = const [],
     this.waypoints = const [],
@@ -140,9 +144,49 @@ class HikingRoute {
     this.totalDescent = 0,
     this.highestPoint,
     this.straightRanges = const [],
+    this.turnIndex,
   });
 
   bool get hasRoute => points.length >= 2;
+
+  bool get outAndBack => turnIndex != null;
+
+  /// Appends the way back (same path, reversed) so distance, time,
+  /// stages, profile and packing cover the whole trip. No-op when the
+  /// route is already out-and-back.
+  void makeOutAndBack() {
+    if (outAndBack || points.length < 2) return;
+    final last = points.length - 1;
+    points = [
+      ...points,
+      for (var i = last - 1; i >= 0; i--)
+        RoutePoint(
+          points[i].lat,
+          points[i].lon,
+          elevation: points[i].elevation,
+        ),
+    ];
+    straightRanges = [
+      ...straightRanges,
+      for (final r in straightRanges)
+        (start: 2 * last - r.end, end: 2 * last - r.start),
+    ];
+    turnIndex = last;
+    distanceMeters *= 2;
+  }
+
+  /// Drops the mirrored way back again.
+  void makeOneWay() {
+    final t = turnIndex;
+    if (t == null) return;
+    points = points.sublist(0, t + 1);
+    straightRanges = [
+      for (final r in straightRanges)
+        if (r.end <= t) r,
+    ];
+    turnIndex = null;
+    distanceMeters /= 2;
+  }
 
   /// Deviation alerts are only meaningful for a wholly trail-routed line.
   /// Imported, manual and straight-line legs have no verified corridor.
@@ -226,6 +270,7 @@ class HikingRoute {
     'totalAscent': totalAscent,
     'totalDescent': totalDescent,
     'highestPoint': highestPoint,
+    if (turnIndex != null) 'turnIndex': turnIndex,
     if (straightRanges.isNotEmpty)
       'straightRanges': [
         for (final r in straightRanges) [r.start, r.end],
@@ -246,6 +291,7 @@ class HikingRoute {
       totalAscent: (j['totalAscent'] as num?)?.toDouble() ?? 0,
       totalDescent: (j['totalDescent'] as num?)?.toDouble() ?? 0,
       highestPoint: (j['highestPoint'] as num?)?.toDouble(),
+      turnIndex: (j['turnIndex'] as num?)?.toInt(),
       straightRanges: [
         for (final r in j['straightRanges'] as List? ?? [])
           (start: (r[0] as num).toInt(), end: (r[1] as num).toInt()),
@@ -258,6 +304,8 @@ class HikingRoute {
       for (final r in route.straightRanges)
         if (r.start >= 0 && r.start <= r.end && r.end < n) r,
     ];
+    final t = route.turnIndex;
+    if (t != null && (t < 1 || t >= n - 1)) route.turnIndex = null;
     return route;
   }
 
@@ -276,6 +324,7 @@ class HikingRoute {
       'asc': totalAscent.round(),
       'desc': totalDescent.round(),
       if (highestPoint != null) 'high': highestPoint!.round(),
+      if (turnIndex != null) 'turn': turnIndex,
       'pts': [
         for (final p in points)
           p.elevation == null
@@ -309,6 +358,7 @@ class HikingRoute {
       totalAscent: (j['asc'] as num?)?.toDouble() ?? 0,
       totalDescent: (j['desc'] as num?)?.toDouble() ?? 0,
       highestPoint: (j['high'] as num?)?.toDouble(),
+      turnIndex: (j['turn'] as num?)?.toInt(),
       straightRanges: [
         for (final r in j['straight'] as List? ?? [])
           (start: (r[0] as num).toInt(), end: (r[1] as num).toInt()),

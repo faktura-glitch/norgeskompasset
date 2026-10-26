@@ -850,6 +850,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         lastError = '${e.message} Viser estimert rute (luftlinje).';
       }
       final distance = routeDistanceMeters(points);
+      // «Tur-retur» is a property of the trip, not of one calculation
+      // — keep it when the route is regenerated.
+      final keepOutAndBack = trip.route?.outAndBack == true;
       trip.route = HikingRoute(
         points: points,
         waypoints: waypoints,
@@ -857,6 +860,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         distanceMeters: distance,
         straightRanges: straightRanges,
       );
+      if (keepOutAndBack) trip.route!.makeOutAndBack();
       await _commitRoute(trip);
     });
   }
@@ -996,6 +1000,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         await repo.saveTrip(trip);
       }
     });
+  }
+
+  /// Toggles «tur-retur»: the way back mirrors the way out, so every
+  /// derived number (distance, time, ascent, stages, packing) covers
+  /// the whole trip. Weather is per stage midpoint and is refetched.
+  Future<void> setOutAndBack(Trip trip, bool on) async {
+    final route = trip.route;
+    if (route == null || !route.hasRoute || route.outAndBack == on) return;
+    if (on) {
+      route.makeOutAndBack();
+    } else {
+      route.makeOneWay();
+    }
+    trip.weather = {};
+    _recomputeStages(trip);
+    await _refreshPlan(trip);
   }
 
   /// Recomputes stage splits, stats, dates and difficulty for the trip.
