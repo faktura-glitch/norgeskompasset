@@ -64,6 +64,15 @@ function text(v) {
   return typeof v === "string" ? v : "";
 }
 
+/** v3 gir eventPageUrl som { base, path }; eldre svar som ren streng. */
+function pageUrl(u, slug) {
+  if (typeof u === "string" && u.startsWith("http")) return u;
+  if (u && typeof u === "object" && text(u.base).startsWith("http")) {
+    return text(u.base).replace(/\/$/, "") + text(u.path);
+  }
+  return slug ? `${SITE_URL}/event-details/${slug}` : `${SITE_URL}/turer`;
+}
+
 function geo(addr) {
   const g = addr.geocode || addr.location || null;
   return g
@@ -97,9 +106,7 @@ function normalize(e) {
     lon,
     online: loc.type === "ONLINE",
     image: imageUrl(e.mainImage),
-    url:
-      e.eventPageUrl ||
-      (slug ? `${SITE_URL}/event-details/${slug}` : `${SITE_URL}/turer`),
+    url: pageUrl(e.eventPageUrl, slug),
     registrationType: reg.type || null,
     registrationOpen: reg.status
       ? reg.status === "OPEN_TICKETS" || reg.status === "OPEN_RSVP"
