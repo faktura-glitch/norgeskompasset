@@ -1,39 +1,55 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../core/app_info.dart';
-import '../core/http_identity.dart';
 import '../models/calendar_event.dart';
 
-/// Fetches the tour calendar from the `events` Cloud Function, which
-/// proxies Wix Events with the API key kept server-side.
+/// Reads the tour calendar from Firestore (`config/events`). The document
+/// is written every hour by the `refreshEvents` Cloud Function, which
+/// fetches Wix Events with the API key kept server-side.
 class EventsService {
-  final http.Client _client;
-  EventsService([http.Client? client]) : _client = client ?? http.Client();
+  final FirebaseFirestore? _db;
+  EventsService([FirebaseFirestore? db]) : _db = db;
 
   Future<List<CalendarEvent>> fetch({bool refresh = false}) async {
-    final uri = Uri.parse(
-      refresh ? '$kEventsEndpoint?refresh=1' : kEventsEndpoint,
-    );
-    final res = await _client
-        .get(uri, headers: const {'User-Agent': kUserAgent})
-        .timeout(const Duration(seconds: 20));
-    if (res.statusCode != 200) {
-      throw http.ClientException('Turkalender svarte ${res.statusCode}', uri);
+    if (_db == null && Firebase.apps.isEmpty) {
+      throw StateError('Firebase er ikke satt opp');
     }
-    return parse(utf8.decode(res.bodyBytes));
+    final db = _db ?? FirebaseFirestore.instance;
+    final snap = await db
+        .doc(kEventsDoc)
+        .get(
+          GetOptions(source: refresh ? Source.server : Source.serverAndCache),
+        )
+        .timeout(const Duration(seconds: 20));
+    final data = snap.data();
+    if (data == null) return const [];
+    return parseList(data['events']);
   }
 
   static List<CalendarEvent> parse(String body) {
     final json = jsonDecode(body);
-    final raw = json is Map ? json['events'] : json;
+    return parseList(json is Map ? json['events'] : json);
+  }
+
+  static List<CalendarEvent> parseList(Object? raw) {
     if (raw is! List) return const [];
     final events = <CalendarEvent>[
       for (final e in raw)
-        if (e is Map) ?CalendarEvent.fromJson(Map<String, dynamic>.from(e)),
+        if (e is Map) ?CalendarEvent.fromJson(_plain(e)),
     ];
     events.sort((a, b) => a.start.compareTo(b.start));
     return events;
   }
+
+  /// Firestore returns Timestamps for date fields written server-side;
+  /// the model expects ISO strings.
+  static Map<String, dynamic> _plain(Map e) => {
+    for (final entry in e.entries)
+      entry.key.toString(): entry.value is Timestamp
+          ? (entry.value as Timestamp).toDate().toUtc().toIso8601String()
+          : entry.value,
+  };
 }

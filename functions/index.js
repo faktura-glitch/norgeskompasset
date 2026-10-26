@@ -1,15 +1,17 @@
-// Turkalender: henter kommende arrangementer fra Wix Events på
-// norgeskompasset.no og gir dem til appen i et lite, stabilt format.
-// API-nøkkelen ligger som Firebase-secret (WIX_API_KEY) og forlater
-// aldri serveren. Svaret caches i Firestore (config/events) i én time
-// så Wix ikke kalles for hver app-åpning.
+// Turkalender: henter kommende arrangementer fra Wix Events paa
+// norgeskompasset.no hver time og skriver dem til Firestore
+// (config/events), som appen leser direkte. API-noekkelen ligger som
+// Firebase-secret (WIX_API_KEY) og forlater aldri serveren. Ingen
+// offentlig HTTP-funksjon trengs, saa org-regelen om "allUsers" er
+// uten betydning.
 
-const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 
-setGlobalOptions({ region: "europe-west1", maxInstances: 5 });
+setGlobalOptions({ region: "europe-west1", maxInstances: 2 });
 admin.initializeApp();
 
 const WIX_API_KEY = defineSecret("WIX_API_KEY");
@@ -18,9 +20,9 @@ const WIX_SITE_ID = defineString("WIX_SITE_ID", {
   default: "b4f923aa-4267-44ba-a55b-e9454d93420f",
 });
 
-const CACHE_DOC = "config/events";
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const EVENTS_DOC = "config/events";
 const SITE_URL = "https://www.norgeskompasset.no";
+const MAX_DESCRIPTION = 4000;
 
 /** Henter kommende arrangementer fra Wix Events v1 query-API. */
 async function fetchFromWix(apiKey, siteId) {
@@ -48,7 +50,7 @@ async function fetchFromWix(apiKey, siteId) {
   return (json.events || []).map(normalize).filter((e) => e.start);
 }
 
-/** Wix-bilde-id → offentlig URL. */
+/** Wix-bilde-id -> offentlig URL. */
 function imageUrl(img) {
   if (!img) return null;
   if (img.url && img.url.startsWith("http")) return img.url;
@@ -58,10 +60,12 @@ function imageUrl(img) {
 
 function geo(addr) {
   const g = addr.geocode || addr.location || null;
-  return g ? { lat: g.latitude ?? null, lon: g.longitude ?? null } : { lat: null, lon: null };
+  return g
+    ? { lat: g.latitude ?? null, lon: g.longitude ?? null }
+    : { lat: null, lon: null };
 }
 
-/** Plukker ut det appen trenger – robust mot små endringer hos Wix. */
+/** Plukker ut det appen trenger - robust mot smaa endringer hos Wix. */
 function normalize(e) {
   const sched = e.scheduling || {};
   const cfg = sched.config || {};
@@ -75,7 +79,7 @@ function normalize(e) {
   return {
     id: e.id,
     title: (e.title || "").trim(),
-    description: (e.description || e.about || "").trim(),
+    description: (e.description || e.about || "").trim().slice(0, MAX_DESCRIPTION),
     start: cfg.startDate || sched.startDate || null,
     end: cfg.endDate || sched.endDate || null,
     formatted: sched.formatted || null,
@@ -88,45 +92,49 @@ function normalize(e) {
     image: imageUrl(e.mainImage),
     url: slug ? `${SITE_URL}/event-details/${slug}` : `${SITE_URL}/turer`,
     registrationType: reg.type || null,
-    registrationOpen: reg.status ? reg.status === "OPEN_TICKETS" || reg.status === "OPEN_RSVP" : null,
+    registrationOpen: reg.status
+      ? reg.status === "OPEN_TICKETS" || reg.status === "OPEN_RSVP"
+      : null,
     price: lowest ? Number(lowest.amount ?? lowest.value ?? 0) : null,
     currency: lowest ? lowest.currency || "NOK" : null,
     soldOut: ticketing.soldOut === true,
   };
 }
 
-async function readCache(ref) {
-  const snap = await ref.get().catch(() => null);
-  return snap && snap.data();
+/** Henter fra Wix og skriver til config/events. Feiler Wix, beholdes
+ *  forrige innhold, og kun `lastError` oppdateres. */
+async function refresh() {
+  const ref = admin.firestore().doc(EVENTS_DOC);
+  try {
+    const events = await fetchFromWix(WIX_API_KEY.value(), WIX_SITE_ID.value());
+    await ref.set({
+      events,
+      fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+      fetchedAtIso: new Date().toISOString(),
+      lastError: null,
+    });
+    logger.info(`Turkalender oppdatert: ${events.length} arrangementer`);
+    return events.length;
+  } catch (err) {
+    logger.error("Kunne ikke hente turkalenderen fra Wix", err);
+    await ref.set(
+      { lastError: String(err && err.message ? err.message : err) },
+      { merge: true },
+    );
+    throw err;
+  }
 }
 
-exports.events = onRequest(
-  { secrets: [WIX_API_KEY], cors: true, timeoutSeconds: 30 },
-  async (req, res) => {
-    res.set("Cache-Control", "public, max-age=300");
-    const force = req.query.refresh === "1";
-    const ref = admin.firestore().doc(CACHE_DOC);
-    try {
-      if (!force) {
-        const data = await readCache(ref);
-        if (data && data.fetchedAt && Date.now() - data.fetchedAt.toMillis() < CACHE_TTL_MS) {
-          res.json({ events: data.events, fetchedAt: data.fetchedAt.toDate().toISOString(), cached: true });
-          return;
-        }
-      }
-      const events = await fetchFromWix(WIX_API_KEY.value(), WIX_SITE_ID.value());
-      const fetchedAt = admin.firestore.Timestamp.now();
-      await ref.set({ events, fetchedAt });
-      res.json({ events, fetchedAt: fetchedAt.toDate().toISOString(), cached: false });
-    } catch (err) {
-      console.error("events:", err);
-      // Gammel cache er bedre enn ingenting når Wix feiler.
-      const data = await readCache(ref);
-      if (data && data.events) {
-        res.json({ events: data.events, fetchedAt: data.fetchedAt.toDate().toISOString(), cached: true, stale: true });
-        return;
-      }
-      res.status(502).json({ error: "Kunne ikke hente turkalenderen." });
-    }
+exports.refreshEvents = onSchedule(
+  {
+    schedule: "every 60 minutes",
+    timeZone: "Europe/Oslo",
+    secrets: [WIX_API_KEY],
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    retryCount: 1,
+  },
+  async () => {
+    await refresh();
   },
 );

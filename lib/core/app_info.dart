@@ -4,6 +4,6 @@ const kAppVersion = '1.0.0+1';
 
 const kFeedbackEmail = 'hei@norgeskompasset.no';
 
-/// Cloud Function that proxies the Wix Events calendar (functions/index.js).
-const kEventsEndpoint =
-    'https://europe-west1-norges-kompasset-pro.cloudfunctions.net/events';
+/// Firestore document with the tour calendar, written hourly by the
+/// `refreshEvents` Cloud Function (functions/index.js).
+const kEventsDoc = 'config/events';
