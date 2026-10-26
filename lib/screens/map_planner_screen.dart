@@ -37,8 +37,10 @@ const _osm = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 // OpenSnowMap pistes (OSM data) — transparent overlay of nordic
 // and downhill ski trails drawn on top of the base map.
 const _openSnowMap = 'https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png';
-
-enum _TapMode { auto, start, end, waypoint, direct }
+// NVE bratthetskart (2024) — slope classes from 27° upwards, the
+// standard layer for judging avalanche terrain. Web Mercator tile cache.
+const _nveSteepness =
+    'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_2024/MapServer/tile/{z}/{y}/{x}';
 
 class MapPlannerScreen extends StatefulWidget {
   /// Optional point to highlight — used when a position is pushed
@@ -59,11 +61,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   bool _searching = false;
   String? _searchError;
   int _searchGeneration = 0;
-  _TapMode _tapMode = _TapMode.auto;
   final _mapSettings = MapDisplaySettings();
   double? _mapZoom;
-  bool _showConfig = false;
-  bool _showAdvanced = false;
   bool _locating = false;
 
   /// Last accepted user fix — drawn as a position dot on the map.
@@ -74,6 +73,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   double _loopKm = 15;
   int _loopSeed = 0;
   bool _loopGenerated = false;
+  bool _steepnessLayer = false;
 
   // OpenSnowMap ski-trail overlay (toggled from the map).
   bool get _skiOverlay => _mapSettings.skiFor(_trip?.activity);
@@ -96,7 +96,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
 
   Trip? get _trip => context.read<AppState>().currentTrip;
   String? _anchorsFromTripId;
-  bool _directHintShown = false;
   // True when anchors were edited after the last route calculation —
   // the drawn route then no longer matches the waypoint list.
   bool _routeDirty = false;
@@ -394,32 +393,15 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         }
         return;
       }
-      switch (_tapMode) {
-        case _TapMode.start:
-          _setAnchor(WaypointType.start, point);
-          _tapMode = _TapMode.auto;
-        case _TapMode.end:
-          _setAnchor(WaypointType.end, point);
-          _tapMode = _TapMode.auto;
-        case _TapMode.waypoint:
-          _insertWaypoint(point);
-        case _TapMode.direct:
-          _insertWaypoint(point, straightLeg: true);
-          if (!_directHintShown) {
-            _directHintShown = true;
-            nkToast(
-              context,
-              'Punkt lagt til – strekningen hit tegnes som rett linje (estimat)',
-            );
-          }
-        case _TapMode.auto:
-          if (!_hasType(WaypointType.start)) {
-            _setAnchor(WaypointType.start, point);
-          } else if (!_hasType(WaypointType.end)) {
-            _setAnchor(WaypointType.end, point);
-          } else {
-            _insertWaypoint(point);
-          }
+      // First tap = start, second = goal, every later tap a via point
+      // placed where it belongs along the route. Straight legs and
+      // moving points live in the point menu.
+      if (!_hasType(WaypointType.start)) {
+        _setAnchor(WaypointType.start, point);
+      } else if (!_hasType(WaypointType.end)) {
+        _setAnchor(WaypointType.end, point);
+      } else {
+        _insertWaypoint(point);
       }
       _results = [];
       _routeDirty = true;
@@ -505,7 +487,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     bool straightLeg = false,
     WaypointType type = WaypointType.waypoint,
   }) {
-    final endIdx = _anchors.indexWhere((w) => w.type == WaypointType.end);
     final w = Waypoint(
       id: const Uuid().v4().substring(0, 8),
       name:
@@ -518,10 +499,14 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       type: type,
       straightLeg: straightLeg,
     );
-    if (endIdx >= 0) {
-      _anchors.insert(endIdx, w);
-    } else {
+    // Insert where the point sits along the route, not blindly before
+    // the goal — a tap between the start and an earlier via point must
+    // not send the route zig-zagging back.
+    final idx = nearestLegIndex([for (final a in _anchors) a.latLng], point);
+    if (idx >= _anchors.length) {
       _anchors.add(w);
+    } else {
+      _anchors.insert(idx, w);
     }
   }
 
@@ -856,6 +841,16 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 tileProvider: PersistentTileProvider(),
                 userAgentPackageName: 'ai.norgeskompasset.app',
               ),
+            if (_steepnessLayer)
+              Opacity(
+                opacity: 0.55,
+                child: TileLayer(
+                  urlTemplate: _nveSteepness,
+                  tileProvider: PersistentTileProvider(),
+                  userAgentPackageName: 'ai.norgeskompasset.app',
+                  maxNativeZoom: 17,
+                ),
+              ),
             // Registered trails are a visual reference layer only —
             // taps on the map always place waypoints.
             if (_trailLayer && _trails.isNotEmpty)
@@ -950,6 +945,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 if (_skiOverlay)
                   const TextSourceAttribution(
                     'OpenSnowMap · kartlagte løyper, ikke prepareringsstatus',
+                  ),
+                if (_steepnessLayer)
+                  const TextSourceAttribution(
+                    'Bratthet: © NVE · veiledende, erstatter ikke skredvarsel',
                   ),
               ],
             ),
@@ -1068,60 +1067,13 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             ],
           ),
         ),
-        // Tap-mode chips — horizontal, scrollable so they never cover
-        // more than one row of the map (important on small screens).
-        // The row now spans the full bottom edge — the layer selector
-        // moved up into the right-hand button column.
-        Positioned(
-          left: 10,
-          right: 10,
-          bottom: 10,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _modeChip('Auto', _TapMode.auto, Icons.touch_app),
-                const SizedBox(width: 6),
-                _modeChip('Start (A)', _TapMode.start, Icons.play_arrow),
-                const SizedBox(width: 6),
-                _modeChip('Mål (B)', _TapMode.end, Icons.flag),
-                const SizedBox(width: 6),
-                ActionChip(
-                  label: Text(_showAdvanced ? 'Færre valg' : 'Flere punktvalg'),
-                  onPressed: () => setState(() {
-                    _showAdvanced = !_showAdvanced;
-                    if (!_showAdvanced &&
-                        (_tapMode == _TapMode.waypoint ||
-                            _tapMode == _TapMode.direct)) {
-                      _tapMode = _TapMode.auto;
-                    }
-                  }),
-                ),
-                if (_showAdvanced) ...[
-                  const SizedBox(width: 6),
-                  _modeChip(
-                    'Via-punkt · følg sti',
-                    _TapMode.waypoint,
-                    Icons.add_location_alt_outlined,
-                  ),
-                  const SizedBox(width: 6),
-                  _modeChip(
-                    'Rett linje · estimat',
-                    _TapMode.direct,
-                    Icons.timeline_outlined,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        // Move-mode banner — sits just above the mode chips so the
-        // active placement state can't be missed.
+        // Move-mode banner — along the bottom edge so the active
+        // placement state can't be missed.
         if (_moveId != null)
           Positioned(
             left: 10,
             right: 56,
-            bottom: 52,
+            bottom: 10,
             child: NkCard(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               color: NkColors.warningAmber.withValues(alpha: 0.12),
@@ -1179,6 +1131,23 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   onSelected: (v) {
                     if (v == 'automatic') {
                       setState(_mapSettings.reset);
+                    } else if (v == 'download') {
+                      if (trip != null) {
+                        context.read<AppState>().downloadMapTiles(trip);
+                        nkToast(
+                          context,
+                          'Laster ned kartfliser langs ruten – fremdrift og lagret mengde ser du på Sikkerhet-siden.',
+                        );
+                      }
+                    } else if (v == 'bratthet') {
+                      final on = !_steepnessLayer;
+                      setState(() => _steepnessLayer = on);
+                      if (on) {
+                        nkToast(
+                          context,
+                          'Bratthetskart fra NVE: farget terreng er brattere enn 27° – jo mørkere, jo brattere. Snøskred løsner oftest i 30–45°. Sjekk alltid varsom.no.',
+                        );
+                      }
                     } else if (v == 'ski-overlay') {
                       setState(() => _mapSettings.skiOverride = !_skiOverlay);
                     } else if (v == 'turinfo') {
@@ -1252,9 +1221,24 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       child: const Text('Skiløyper · ikke prepareringsstatus'),
                     ),
                     CheckedPopupMenuItem(
+                      value: 'bratthet',
+                      checked: _steepnessLayer,
+                      child: const Text('Bratthet (NVE) · skredterreng'),
+                    ),
+                    CheckedPopupMenuItem(
                       value: 'turinfo',
                       checked: _trailLayer,
                       child: const Text('Registrerte stier (Kartverket)'),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'download',
+                      enabled: route?.hasRoute == true,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.download_for_offline_outlined),
+                        title: Text('Last ned kart for ruten (offline)'),
+                      ),
                     ),
                   ],
                 ),
@@ -1325,6 +1309,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         });
                       case 'reverse':
                         _reverseRoute();
+                      case 'split':
+                        if (trip != null) _splitStages(trip);
+                      case 'clear':
+                        _clearRoute();
                       case 'import':
                         _importGpx();
                       case 'export':
@@ -1370,6 +1358,24 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         title: Text('Snu ruten (bytt start og mål)'),
                       ),
                     ),
+                    PopupMenuItem(
+                      value: 'split',
+                      enabled: route?.hasRoute == true,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.splitscreen_outlined),
+                        title: Text('Del inn i etapper'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'clear',
+                      enabled: _anchors.isNotEmpty || route?.hasRoute == true,
+                      child: const ListTile(
+                        dense: true,
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Tøm rute'),
+                      ),
+                    ),
                     const PopupMenuDivider(),
                     const PopupMenuItem(
                       value: 'import',
@@ -1395,59 +1401,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _modeChip(String label, _TapMode mode, IconData icon) {
-    final active = _tapMode == mode;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _tapMode = active ? _TapMode.auto : mode;
-          _directHintShown = false;
-        });
-        if (!active && mode == _TapMode.waypoint) {
-          nkToast(
-            context,
-            'Via-punkt: ruten forsøker å følge kjente stier via punktet. Manglende forbindelse merkes som estimert rett linje.',
-          );
-        } else if (!active && mode == _TapMode.direct) {
-          nkToast(
-            context,
-            'Rett linje fra forrige punkt: ingen stiberegning eller kontroll av fremkommelighet. Strekningen er et estimat.',
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: active ? NkColors.primaryBlue : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: active ? NkColors.primaryBlue : NkColors.border,
-          ),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: active ? Colors.white : NkColors.primaryBlue,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: active ? Colors.white : NkColors.primaryBlue,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1581,6 +1534,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               fmtCount(trip.hikingDays, 'dag', 'dager'),
               fmtCount(trip.participants, 'person', 'personer'),
               if (trip.children > 0) '${trip.children} barn',
+              if (trip.pace != HikingPace.normal)
+                'Tempo: ${trip.pace.label.toLowerCase()}',
+              if (trip.carry != CarryMode.backpack) trip.carry.label,
               if (trip.activity == TripActivity.ski) trip.skiStyle.label,
               if (trip.snowshoes) 'Truger',
               if (trip.fishing) 'Fiske',
@@ -1595,35 +1551,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               ),
           ],
         ),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => context.read<NavController>().openMapExplore(),
-                icon: const Icon(Icons.travel_explore_outlined, size: 16),
-                label: const Text('Turer delt av andre'),
-              ),
-            ),
-            IconButton(
-              icon: Icon(_showConfig ? Icons.tune : Icons.tune_outlined),
-              color: _showConfig
-                  ? NkColors.primaryBlue
-                  : NkColors.textSecondary,
-              tooltip: 'Turinnstillinger',
-              onPressed: () => setState(() => _showConfig = !_showConfig),
-            ),
-          ],
-        ),
         const SizedBox(height: 12),
         ...[
-          if (_showConfig) ...[
-            _TripConfig(
-              trip: trip,
-              onSkiSelected: () => setState(() {}),
-              onActivityChanged: () => setState(() => _routeDirty = true),
-            ),
-            const SizedBox(height: 12),
-          ],
           if (_anchors.isNotEmpty) ...[
             _WaypointList(
               anchors: _anchors,
@@ -1687,20 +1616,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       ? null
                       : (v) => context.read<AppState>().setOutAndBack(trip, v),
                 ),
-              if (_showAdvanced) ...[
-                _actionBtn(
-                  icon: Icons.splitscreen_outlined,
-                  label: 'Del inn i etapper',
-                  enabled: route?.hasRoute == true,
-                  onTap: () => _splitStages(trip),
-                ),
-                _actionBtn(
-                  icon: Icons.delete_outline,
-                  label: 'Tøm rute',
-                  enabled: _anchors.isNotEmpty || route?.hasRoute == true,
-                  onTap: _clearRoute,
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -1734,7 +1649,6 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         .where((w) => w.type == WaypointType.start)
         .firstOrNull;
     if (start == null) {
-      setState(() => _tapMode = _TapMode.start);
       nkToast(
         context,
         'Velg startpunkt først — trykk på kartet der turen skal starte.',
@@ -1984,10 +1898,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
       ),
     );
     if (chosen == null || !mounted) return;
-    final state = context.read<AppState>();
-    trip.startDate ??= DateTime.now();
-    trip.endDate = trip.startDate!.add(Duration(days: chosen - 1));
-    await state.reanalyze(trip, datesChanged: true);
+    await setTripDays(context, trip, chosen);
     if (!mounted) return;
     _showStages(trip);
   }
@@ -2086,381 +1997,13 @@ Marker _marker(Waypoint w, {bool moving = false, VoidCallback? onLongPress}) {
 
 // ── Trip config ─────────────────────────────────────────────
 
-class _TripConfig extends StatefulWidget {
-  final Trip trip;
-
-  /// Called when the user switches the trip to ski mode — the map
-  /// screen turns on the ski-trail overlay so the planner sees the
-  /// pistes while placing waypoints.
-  final VoidCallback? onSkiSelected;
-  final VoidCallback? onActivityChanged;
-  const _TripConfig({
-    required this.trip,
-    this.onSkiSelected,
-    this.onActivityChanged,
-  });
-
-  @override
-  State<_TripConfig> createState() => _TripConfigState();
-}
-
-class _TripConfigState extends State<_TripConfig> {
-  Future<void> _pickDate(bool start) async {
-    final trip = widget.trip;
-    final state = context.read<AppState>();
-    final initial =
-        (start ? trip.startDate : trip.endDate) ??
-        DateTime.now().add(const Duration(days: 14));
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 540)),
-      helpText: start ? 'Startdato' : 'Sluttdato',
-    );
-    if (picked == null || !mounted) return;
-    var seasonChanged = false;
-    setState(() {
-      if (start) {
-        // Moving the start keeps the number of days.
-        seasonChanged = _applyDates(trip, picked, trip.hikingDays);
-      } else {
-        trip.endDate = picked.isBefore(trip.startDate ?? picked)
-            ? trip.startDate
-            : picked;
-      }
-    });
-    if (seasonChanged) {
-      nkToast(
-        context,
-        'Sesong satt til ${trip.season.label} ut fra startdatoen – '
-        'pakkelisten er oppdatert.',
-      );
-    }
-    await state.reanalyze(trip, datesChanged: true);
-  }
-
-  /// Asks once whether a ski trip crosses avalanche terrain, so the
-  /// packing list can mark the avalanche trio correctly.
-  Future<void> _askAvalancheTerrain(Trip trip) async {
-    final answer = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Går turen i skredterreng?'),
-        content: const Text(
-          'Bratte fjellsider over ca. 30° eller under slike heng er '
-          'skredterreng. Svaret avgjør om skredsøker, spade og søkestang '
-          'blir påkrevd i pakkelisten. Sjekk alltid varsom.no.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Vet ikke'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Nei, løyper/flatt'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ja, mulig skred'),
-          ),
-        ],
-      ),
-    );
-    if (answer != null) trip.avalancheTerrain = answer;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final trip = widget.trip;
-    final state = context.read<AppState>();
-    return NkCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader('Turinnstillinger', icon: Icons.tune),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _DateField(
-                  label: 'Startdato',
-                  date: trip.startDate,
-                  onTap: () => _pickDate(true),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Duration has one source: start date + «Dager». The last
-              // day is derived and shown read-only.
-              Expanded(
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Siste dag',
-                    helperText: 'Endres med «Dager»',
-                  ),
-                  child: Text(
-                    fmtDate(trip.endDate),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<TripActivity>(
-                  key: ValueKey('act-${trip.activity.name}'),
-                  initialValue: trip.activity,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Aktivitet',
-                    helperText: 'Ski viser løypelag; ruten må kontrolleres',
-                  ),
-                  items: [
-                    for (final a in TripActivity.values)
-                      DropdownMenuItem(value: a, child: Text(a.label)),
-                  ],
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() {
-                      _applyActivity(trip, v);
-                    });
-                    if (v == TripActivity.ski) widget.onSkiSelected?.call();
-                    if (v == TripActivity.ski &&
-                        trip.avalancheTerrain == null) {
-                      await _askAvalancheTerrain(trip);
-                    }
-                    widget.onActivityChanged?.call();
-                    await state.updateTripSetup(trip);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonFormField<HikingPace>(
-                  initialValue: trip.pace,
-                  decoration: const InputDecoration(labelText: 'Tempo'),
-                  items: [
-                    for (final p in HikingPace.values)
-                      DropdownMenuItem(value: p, child: Text(p.label)),
-                  ],
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => trip.pace = v);
-                    await state.reanalyze(trip);
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<AccommodationType>(
-                  initialValue: trip.accommodation,
-                  decoration: const InputDecoration(labelText: 'Overnatting'),
-                  items: [
-                    for (final a in AccommodationType.values)
-                      DropdownMenuItem(value: a, child: Text(a.label)),
-                  ],
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => trip.accommodation = v);
-                    await state.updateTripSetup(trip);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonFormField<TripSeason>(
-                  key: ValueKey('season-${trip.season.name}'),
-                  initialValue: trip.season,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Sesong',
-                    helperText: 'Settes fra startdatoen – kan overstyres',
-                  ),
-                  items: [
-                    for (final s in TripSeason.values)
-                      DropdownMenuItem(value: s, child: Text(s.label)),
-                  ],
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() {
-                      trip.season = v;
-                      // Winter allows foot (snowshoes) and ski trips;
-                      // only paddling needs open water.
-                      if (v == TripSeason.winter &&
-                          trip.activity == TripActivity.paddle) {
-                        trip.activity = TripActivity.foot;
-                        trip.carry = CarryMode.backpack;
-                      }
-                    });
-                    if (v == TripSeason.winter) {
-                      widget.onSkiSelected?.call();
-                    }
-                    widget.onActivityChanged?.call();
-                    await state.updateTripSetup(trip);
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<CarryMode>(
-                  key: ValueKey('carry-${trip.carry.name}'),
-                  initialValue: trip.carry,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Bæring'),
-                  items: [
-                    for (final c in CarryMode.values)
-                      DropdownMenuItem(value: c, child: Text(c.label)),
-                  ],
-                  onChanged: (v) async {
-                    if (v == null) return;
-                    setState(() => trip.carry = v);
-                    await state.updateTripSetup(trip);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Dager'),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Én dag kortere',
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        onPressed: () async {
-                          if ((trip.endDate != null &&
-                              trip.startDate != null &&
-                              trip.endDate!.isAfter(trip.startDate!))) {
-                            setState(
-                              () => trip.endDate = trip.endDate!.subtract(
-                                const Duration(days: 1),
-                              ),
-                            );
-                            await state.reanalyze(trip, datesChanged: true);
-                          }
-                        },
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${trip.hikingDays}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Én dag lengre',
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        onPressed: () async {
-                          final base =
-                              trip.endDate ?? trip.startDate ?? DateTime.now();
-                          setState(
-                            () => trip.endDate = base.add(
-                              const Duration(days: 1),
-                            ),
-                          );
-                          trip.startDate ??= DateTime.now();
-                          await state.reanalyze(trip, datesChanged: true);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Deltakere',
-                    helperText: 'Skalerer matplan og pakkeliste',
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Færre deltakere',
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                        onPressed: () async {
-                          if (trip.participants > 1) {
-                            setState(() => trip.participants--);
-                            await state.updateParticipants(trip);
-                          }
-                        },
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${trip.participants}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Flere deltakere',
-                        visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        onPressed: () async {
-                          if (trip.participants < 20) {
-                            setState(() => trip.participants++);
-                            await state.updateParticipants(trip);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (trip.activity == TripActivity.ski ||
-              trip.season == TripSeason.winter ||
-              trip.avalancheTerrain != null) ...[
-            const SizedBox(height: 10),
-            DropdownButtonFormField<bool?>(
-              key: ValueKey('terrain-${trip.avalancheTerrain}'),
-              initialValue: trip.avalancheTerrain,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Skredterreng',
-                helperText: 'Styrer skredutstyr – sjekk varsom.no ved tvil',
-              ),
-              items: const [
-                DropdownMenuItem(value: null, child: Text('Ukjent')),
-                DropdownMenuItem(
-                  value: false,
-                  child: Text('Utenfor skredterreng'),
-                ),
-                DropdownMenuItem(
-                  value: true,
-                  child: Text('Mulig skredterreng'),
-                ),
-              ],
-              onChanged: (v) async {
-                setState(() => trip.avalancheTerrain = v);
-                await state.updateTripSetup(trip);
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+/// Spreads the trip over [days] days (start date defaults to today)
+/// and rebuilds stages, weather and plan.
+Future<void> setTripDays(BuildContext context, Trip trip, int days) async {
+  final state = context.read<AppState>();
+  trip.startDate ??= DateTime.now();
+  trip.endDate = trip.startDate!.add(Duration(days: days.clamp(1, 14) - 1));
+  await state.reanalyze(trip, datesChanged: true);
 }
 
 /// Sets the start date and trip length. The packing rules follow the
@@ -2485,13 +2028,20 @@ void _applyActivity(Trip trip, TripActivity v) {
   switch (v) {
     case TripActivity.ski:
       if (trip.season == TripSeason.summer) trip.season = TripSeason.winter;
-      if (trip.carry.isPaddle) trip.carry = CarryMode.backpack;
+      if (trip.carry.isPaddle || trip.carry == CarryMode.bikeBags) {
+        trip.carry = CarryMode.backpack;
+      }
     case TripActivity.paddle:
       // Paddling requires open water; keep a kayak if already chosen.
       if (!trip.carry.isPaddle) trip.carry = CarryMode.canoe;
       if (trip.season == TripSeason.winter) trip.season = TripSeason.summer;
+    case TripActivity.bike:
+      if (trip.carry != CarryMode.bikeBags) trip.carry = CarryMode.backpack;
     default:
-      if (trip.carry.isPaddle) trip.carry = CarryMode.backpack;
+      // On foot or running: a sled only makes sense walking in winter.
+      if (trip.carry != CarryMode.pulk || v != TripActivity.foot) {
+        trip.carry = CarryMode.backpack;
+      }
   }
 }
 
@@ -2541,6 +2091,17 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late bool? _terrain = widget.trip.avalancheTerrain;
   late DateTime? _start = widget.trip.startDate;
   late int _days = widget.trip.hikingDays.clamp(1, 60).toInt();
+  late HikingPace _pace = widget.trip.pace;
+  late TripSeason _season = widget.trip.season;
+  bool _seasonTouched = false;
+
+  /// Season the packing rules will use: an explicit override, else the
+  /// one the start date implies, else the trip's current season.
+  TripSeason get _effectiveSeason => _seasonTouched
+      ? _season
+      : _start != null
+      ? TurrutebaseService.seasonForDate(_start!)
+      : widget.trip.season;
 
   Future<void> _pickStart() async {
     final picked = await showDatePicker(
@@ -2579,6 +2140,8 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
     final t = widget.trip;
     if (_start != null) _applyDates(t, _start!, _days);
     _applyActivity(t, _activity);
+    if (_seasonTouched) t.season = _season;
+    t.pace = _pace;
     t.skiStyle = _skiStyle;
     if (_activity == TripActivity.ski) {
       // Prepared tracks are not avalanche terrain.
@@ -2587,6 +2150,19 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
     t.snowshoes = _activity == TripActivity.foot && _snowshoes;
     t.fishing = _fishing;
     if (_activity == TripActivity.paddle && _carry.isPaddle) t.carry = _carry;
+    if (_activity == TripActivity.bike) {
+      t.carry = _carry == CarryMode.bikeBags
+          ? CarryMode.bikeBags
+          : CarryMode.backpack;
+    }
+    if (_activity == TripActivity.ski || _activity == TripActivity.foot) {
+      final sledOk =
+          _activity == TripActivity.ski ||
+          _effectiveSeason == TripSeason.winter;
+      t.carry = _carry == CarryMode.pulk && sledOk
+          ? CarryMode.pulk
+          : CarryMode.backpack;
+    }
     t.accommodation = _accommodation;
     t.participants = _people;
     t.children = _children.clamp(0, _people);
@@ -2605,13 +2181,13 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Hva slags tur er det?',
+              'Turoppsett',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(
-              'Svarene styrer pakkelisten. Du kan endre dem senere ved '
-              'å trykke på merkene under turnavnet.',
+              'Valgene styrer rute, tidsestimat, pakkeliste og vær. Du kan '
+              'endre dem når som helst ved å trykke på merkene under turnavnet.',
               style: TextStyle(color: NkColors.textSecondary),
             ),
             _question('Hvordan?'),
@@ -2649,6 +2225,35 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                 (v) => _terrain = v,
               ),
             ],
+            if (_activity == TripActivity.bike) ...[
+              _question('Bagasje?'),
+              _choices<CarryMode>(
+                const [
+                  (CarryMode.backpack, 'Sekk'),
+                  (CarryMode.bikeBags, 'Sykkelvesker'),
+                ],
+                _carry == CarryMode.bikeBags
+                    ? CarryMode.bikeBags
+                    : CarryMode.backpack,
+                (v) => _carry = v,
+              ),
+            ],
+            if (_activity == TripActivity.ski ||
+                (_activity == TripActivity.foot &&
+                    _effectiveSeason == TripSeason.winter)) ...[
+              _question('Bæring?'),
+              _choices<CarryMode>(
+                const [(CarryMode.backpack, 'Sekk'), (CarryMode.pulk, 'Pulk')],
+                _carry == CarryMode.pulk ? CarryMode.pulk : CarryMode.backpack,
+                (v) => _carry = v,
+              ),
+            ],
+            _question('Tempo?'),
+            _choices<HikingPace>(
+              [for (final p in HikingPace.values) (p, p.label)],
+              _pace,
+              (v) => _pace = v,
+            ),
             _question('Overnatting?'),
             _choices(
               [
@@ -2685,10 +2290,7 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                   onSelected: (v) => setState(() => _fishing = v),
                 ),
                 if (_activity == TripActivity.foot &&
-                    (_start != null
-                            ? TurrutebaseService.seasonForDate(_start!)
-                            : widget.trip.season) ==
-                        TripSeason.winter)
+                    _effectiveSeason == TripSeason.winter)
                   FilterChip(
                     label: const Text('Truger med'),
                     selected: _snowshoes,
@@ -2730,6 +2332,24 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                 'Datoen trengs for å hente riktig værvarsel og sesong.',
                 style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
               ),
+            _question('Sesong?'),
+            _choices<TripSeason>(
+              [for (final s in TripSeason.values) (s, s.label)],
+              _effectiveSeason,
+              (v) {
+                _season = v;
+                _seasonTouched = true;
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _seasonTouched
+                    ? 'Overstyrt – pakkelisten følger valgt sesong.'
+                    : 'Settes fra startdatoen. Trykk for å overstyre.',
+                style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+              ),
+            ),
             _question('Hvem blir med?'),
             Row(
               children: [
@@ -2783,42 +2403,10 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               width: double.infinity,
               child: FilledButton(
                 onPressed: _apply,
-                child: const Text('Oppdater pakkelisten'),
+                child: const Text('Lagre'),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DateField extends StatelessWidget {
-  final String label;
-  final DateTime? date;
-  final VoidCallback onTap;
-  const _DateField({
-    required this.label,
-    required this.date,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
-        ),
-        child: Text(
-          fmtDate(date),
-          style: TextStyle(
-            fontSize: 13,
-            color: date == null ? NkColors.textSecondary : NkColors.textPrimary,
-          ),
         ),
       ),
     );
@@ -3113,6 +2701,11 @@ class _RouteSummary extends StatelessWidget {
       (s) => s.busy && s.busyLabel == AppState.elevationBusyLabel,
     );
     final showElevation = hasElevation || loadingElevation;
+    // Only a recommendation — the user decides how long a day is.
+    final recommendedDays = recommendedTripDays(
+      totalTime,
+      withChildren: trip.children > 0,
+    );
 
     return NkCard(
       child: Column(
@@ -3192,6 +2785,40 @@ class _RouteSummary extends StatelessWidget {
                 ),
             ],
           ),
+          if (recommendedDays > trip.hikingDays) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: NkColors.warningAmber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.schedule,
+                    size: 18,
+                    color: NkColors.warningAmber,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${fmtDuration(totalTime)} er langt for '
+                      '${fmtCount(trip.hikingDays, 'dag', 'dager')}. Anbefalt: '
+                      '${fmtCount(recommendedDays, 'dag', 'dager')} – rundt '
+                      '${fmtDuration(totalTime / recommendedDays)} per dag.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () =>
+                        setTripDays(context, trip, recommendedDays),
+                    child: Text('Del inn i $recommendedDays dager'),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (hasElevation && !loadingElevation) ...[
             const SizedBox(height: 12),
             SizedBox(

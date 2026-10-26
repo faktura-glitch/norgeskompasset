@@ -200,10 +200,20 @@ class GearItem {
   });
 
   bool matches(TripConditions c) {
-    if (activities.isNotEmpty && !activities.contains(c.activity)) {
+    // Running shares the hiking rule set — same terrain and weather,
+    // just quicker.
+    final activity = c.activity == TripActivity.run
+        ? TripActivity.foot
+        : c.activity;
+    if (activities.isNotEmpty &&
+        !activities.contains(activity) &&
+        !activities.contains(c.activity)) {
       return false;
     }
-    if (excludeActivities.contains(c.activity)) return false;
+    if (excludeActivities.contains(activity) ||
+        excludeActivities.contains(c.activity)) {
+      return false;
+    }
     // A kayak carries the canoe kit (dry bags, vest, spare paddle) and
     // adds its own items via [extra]; rules written for canoe apply.
     final carry = c.carry == CarryMode.kayak ? CarryMode.canoe : c.carry;

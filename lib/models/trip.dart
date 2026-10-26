@@ -65,7 +65,7 @@ extension TripSeasonX on TripSeason {
 
 /// How the group carries its gear — a sled (pulk) or a canoe changes
 /// packing fundamentally (dry bags, spare paddle, life vests).
-enum CarryMode { backpack, pulk, canoe, kayak }
+enum CarryMode { backpack, pulk, canoe, kayak, bikeBags }
 
 extension CarryModeX on CarryMode {
   String get label => switch (this) {
@@ -73,6 +73,7 @@ extension CarryModeX on CarryMode {
     CarryMode.pulk => 'Pulk',
     CarryMode.canoe => 'Kano',
     CarryMode.kayak => 'Kajakk',
+    CarryMode.bikeBags => 'Sykkelvesker',
   };
 
   /// Canoe and kayak share the paddling kit (dry bags, vest, spare
@@ -83,15 +84,20 @@ extension CarryModeX on CarryMode {
 /// How the group moves — on foot, skis, bike or paddle. The choice
 /// selects the routing profile (trails / pistes / cycleways /
 /// waterways), the map overlay to show and the packing-gear branch.
-enum TripActivity { foot, ski, bike, paddle }
+enum TripActivity { foot, run, ski, bike, paddle }
 
 extension TripActivityX on TripActivity {
   String get label => switch (this) {
     TripActivity.foot => 'Fottur',
+    TripActivity.run => 'Løping',
     TripActivity.ski => 'Ski',
     TripActivity.bike => 'Sykkel',
     TripActivity.paddle => 'Padling',
   };
+
+  /// Running uses the trail network and the hiking packing rules
+  /// (lighter, but the same terrain and weather).
+  bool get onFoot => this == TripActivity.foot || this == TripActivity.run;
 }
 
 enum HikingPace { relaxed, normal, brisk }

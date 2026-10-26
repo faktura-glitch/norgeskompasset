@@ -100,14 +100,15 @@ double estimateHikingMinutes(
   final km = distanceMeters / 1000;
   final (kmh, minPer100m) = switch (activity) {
     TripActivity.foot => (5.0, 10.0),
+    TripActivity.run => (9.0, 8.0),
     TripActivity.ski => (6.0, 12.0),
     TripActivity.bike => (14.0, 15.0),
     TripActivity.paddle => (5.0, 0.0),
   };
   var minutes = km / kmh * 60 + ascentMeters / 100 * minPer100m;
-  // Steep descents slow hikers and skiers — not paddlers or riders.
-  if (km > 0 &&
-      (activity == TripActivity.foot || activity == TripActivity.ski)) {
+  // Steep descents slow hikers, runners and skiers — not paddlers or
+  // riders.
+  if (km > 0 && (activity.onFoot || activity == TripActivity.ski)) {
     final descentPerKm = descentMeters / km;
     if (descentPerKm > 40) {
       minutes += descentMeters / 100 * 2;
@@ -116,6 +117,48 @@ double estimateHikingMinutes(
   // Groups with children stop more and walk shorter steps — roughly a
   // third slower than the adult pace.
   return minutes * pace.timeFactor * (withChildren ? 1.3 : 1.0);
+}
+
+/// Days a trip should be spread over so no day exceeds a sensible
+/// moving-time budget: 8 h for adults, 6 h with children. Breaks come
+/// on top, so the budget is deliberately conservative. Returns 1 when
+/// the trip fits in a day.
+int recommendedTripDays(num totalMinutes, {bool withChildren = false}) {
+  if (totalMinutes <= 0) return 1;
+  final budget = (withChildren ? 6 : 8) * 60;
+  return (totalMinutes / budget).ceil().clamp(1, 14);
+}
+
+/// Index at which a new via point tapped at [p] belongs in [anchors]
+/// (the anchor ending the leg closest to [p]), so the route keeps
+/// following the map instead of always squeezing in before the goal.
+/// Returns [anchors.length] (append) with fewer than two anchors.
+int nearestLegIndex(List<LatLng> anchors, LatLng p) {
+  if (anchors.length < 2) return anchors.length;
+  var best = 1;
+  var bestD = double.infinity;
+  for (var i = 1; i < anchors.length; i++) {
+    final d = _segmentDistanceMeters(anchors[i - 1], anchors[i], p);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/// Distance from [p] to the segment a–b on a local flat projection —
+/// plenty accurate for leg lengths of a few tens of km.
+double _segmentDistanceMeters(LatLng a, LatLng b, LatLng p) {
+  final k = cos(p.latitude * pi / 180) * 111320;
+  double x(LatLng q) => (q.longitude - p.longitude) * k;
+  double y(LatLng q) => (q.latitude - p.latitude) * 110540;
+  final ax = x(a), ay = y(a), bx = x(b), by = y(b);
+  final dx = bx - ax, dy = by - ay;
+  final len2 = dx * dx + dy * dy;
+  final t = len2 == 0 ? 0.0 : (-(ax * dx + ay * dy) / len2).clamp(0.0, 1.0);
+  final cx = ax + t * dx, cy = ay + t * dy;
+  return sqrt(cx * cx + cy * cy);
 }
 
 /// Splits [points] into [count] stages of roughly equal distance.

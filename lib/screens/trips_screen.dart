@@ -397,6 +397,7 @@ class _TripTile extends StatelessWidget {
                 if (route?.hasRoute == true)
                   metaChip(Icons.route_outlined, fmtKm(route!.distanceMeters)),
                 metaChip(switch (trip.activity) {
+                  TripActivity.run => Icons.directions_run,
                   TripActivity.ski => Icons.downhill_skiing,
                   TripActivity.bike => Icons.directions_bike_outlined,
                   TripActivity.paddle => Icons.kayaking_outlined,
