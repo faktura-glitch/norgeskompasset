@@ -656,6 +656,30 @@ class TripRepository {
   Future<void> saveLocalModePref(bool value) =>
       _settings?.put('local_mode', value) ?? Future.value();
 
+  // ── Tour calendar cache (so the list shows offline) ────────
+  static const _eventsKey = 'events_cache';
+
+  ({List<Map<String, dynamic>> events, DateTime? fetchedAt}) cachedEvents() {
+    final raw = _settings?.get(_eventsKey);
+    if (raw is! Map) return (events: const [], fetchedAt: null);
+    final list = raw['events'];
+    return (
+      events: [
+        if (list is List)
+          for (final e in list)
+            if (e is Map) Map<String, dynamic>.from(e),
+      ],
+      fetchedAt: DateTime.tryParse(raw['fetchedAt'] as String? ?? ''),
+    );
+  }
+
+  Future<void> cacheEvents(List<Map<String, dynamic>> events) =>
+      _settings?.put(_eventsKey, {
+        'events': events,
+        'fetchedAt': DateTime.now().toIso8601String(),
+      }) ??
+      Future.value();
+
   // ── Packing templates ──────────────────────────────────────
   List<Map<String, dynamic>> loadTemplates() {
     final raw = _profileSettings?.get(_templatesKey) as List? ?? [];

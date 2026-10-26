@@ -9,6 +9,7 @@ import '../models/trip.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
+import 'events_screen.dart';
 import 'hiking_screen.dart';
 import 'review_screen.dart';
 import 'safety_screen.dart';
@@ -25,6 +26,14 @@ class _TripsScreenState extends State<TripsScreen> {
   String _query = '';
   int _filter = 0;
   bool _joining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<AppState>().loadEvents(),
+    );
+  }
 
   @override
   void dispose() {
@@ -102,13 +111,26 @@ class _TripsScreenState extends State<TripsScreen> {
                     icon: const Icon(Icons.group_add_outlined, size: 18),
                     label: const Text('Bli med på delt tur'),
                   ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const EventsScreen()),
+                    ),
+                    icon: const Icon(Icons.event_outlined, size: 18),
+                    label: const Text('Turkalender – bli med på fellestur'),
+                  ),
                 ],
               ),
             )
           : Column(
               children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: EventsTeaser(),
+                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(

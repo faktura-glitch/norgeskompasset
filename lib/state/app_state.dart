@@ -6,12 +6,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import '../core/energy.dart';
 import '../core/format.dart';
 import '../core/geo.dart';
 import '../models/alert.dart';
+import '../models/calendar_event.dart';
 import '../models/catalog_trip.dart';
 import '../models/packing.dart';
 import '../models/food_menu.dart';
@@ -30,6 +34,7 @@ import '../services/recommendation_engine.dart';
 import '../services/routing_service.dart';
 import '../services/stage_builder.dart';
 import '../services/tile_cache.dart';
+import '../services/events_service.dart';
 import '../services/trip_repository.dart';
 import '../services/tracking_controller.dart';
 import '../services/turrutebase_service.dart';
@@ -428,6 +433,79 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       lastError = 'Kunne ikke lagre den gjenopprettede turen — prøv igjen.';
       notifyListeners();
     }
+  }
+
+  // ── Tour calendar (norgeskompasset.no arrangements) ────────
+  final eventsService = EventsService();
+  List<CalendarEvent> events = const [];
+  DateTime? eventsFetchedAt;
+  bool eventsLoading = false;
+  String? eventsError;
+
+  /// Loads the calendar: cached copy first (instant, works offline),
+  /// then the network unless the cache is fresh (< 1 h) and not forced.
+  Future<void> loadEvents({bool force = false}) async {
+    if (eventsLoading) return;
+    if (events.isEmpty) {
+      final cached = repo.cachedEvents();
+      events = EventsService.parse(jsonEncode({'events': cached.events}));
+      eventsFetchedAt = cached.fetchedAt;
+    }
+    final fresh =
+        eventsFetchedAt != null &&
+        DateTime.now().difference(eventsFetchedAt!) < const Duration(hours: 1);
+    if (fresh && !force && events.isNotEmpty) {
+      notifyListeners();
+      return;
+    }
+    eventsLoading = true;
+    eventsError = null;
+    notifyListeners();
+    try {
+      final fetched = await eventsService.fetch(refresh: force);
+      events = fetched;
+      eventsFetchedAt = DateTime.now();
+      await repo.cacheEvents([for (final e in fetched) e.toJson()]);
+    } catch (_) {
+      eventsError = events.isEmpty
+          ? 'Kunne ikke hente turkalenderen. Sjekk nettet og prøv igjen.'
+          : 'Viser sist hentede kalender – kunne ikke oppdatere nå.';
+    } finally {
+      eventsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Creates a draft trip from an arrangement: name, dates and meeting
+  /// place are filled in; the route is drawn by the user afterwards.
+  Future<Trip> startFromEvent(CalendarEvent e) async {
+    final start = DateTime(e.start.year, e.start.month, e.start.day);
+    final endSrc = e.end ?? e.start;
+    final end = DateTime(endSrc.year, endSrc.month, endSrc.day);
+    final trip = Trip(
+      id: const Uuid().v4(),
+      name: e.title,
+      startDate: start,
+      endDate: end.isBefore(start) ? start : end,
+    );
+    trip.season = TurrutebaseService.seasonForDate(start);
+    trip.accommodation = e.multiDay
+        ? AccommodationType.cabin
+        : AccommodationType.dayHike;
+    trip.notes = [
+      'Fellestur fra NorgesKompasset-kalenderen.',
+      if (e.place.isNotEmpty) 'Oppmøte: ${e.place}',
+      if (e.formatted != null) 'Tid: ${e.formatted}',
+      'Påmelding og detaljer: ${e.url}',
+    ].join('\n');
+    _recomputeStages(trip);
+    trip.packingList = packingEngine.generate(trip, profile: profile);
+    recommendationEngine.refresh(trip, profile: profile);
+    await repo.saveTrip(trip);
+    trips.insert(0, trip);
+    currentTripId = trip.id;
+    notifyListeners();
+    return trip;
   }
 
   // ── Tour catalog ────────────────────────────────────────────
