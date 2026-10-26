@@ -59,6 +59,11 @@ function imageUrl(img) {
   return id ? `https://static.wixstatic.com/media/${id}` : null;
 }
 
+/** Returnerer verdien bare hvis den er en tekststreng (v3 kan gi objekter). */
+function text(v) {
+  return typeof v === "string" ? v : "";
+}
+
 function geo(addr) {
   const g = addr.geocode || addr.location || null;
   return g
@@ -78,16 +83,16 @@ function normalize(e) {
   const { lat, lon } = geo(addr);
   return {
     id: e.id,
-    title: (e.title || "").trim(),
-    description: (e.description || e.shortDescription || "")
+    title: text(e.title).trim(),
+    description: (text(e.shortDescription) || text(e.description))
       .trim()
       .slice(0, MAX_DESCRIPTION),
     start: dts.startDate || null,
     end: dts.endDate || null,
     formatted: (dts.formatted && dts.formatted.dateAndTime) || null,
     timeZone: dts.timeZoneId || "Europe/Oslo",
-    locationName: loc.name || null,
-    address: addr.formatted || addr.formattedAddress || null,
+    locationName: text(loc.name) || null,
+    address: text(addr.formattedAddress) || text(addr.formatted) || null,
     lat,
     lon,
     online: loc.type === "ONLINE",
