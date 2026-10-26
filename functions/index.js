@@ -24,9 +24,10 @@ const EVENTS_DOC = "config/events";
 const SITE_URL = "https://www.norgeskompasset.no";
 const MAX_DESCRIPTION = 4000;
 
-/** Henter kommende arrangementer fra Wix Events v1 query-API. */
+/** Henter kommende arrangementer fra Wix Events v3 query-API.
+ *  (v1 svarer med tom liste for denne siden, v3 gir alle.) */
 async function fetchFromWix(apiKey, siteId) {
-  const res = await fetch("https://www.wixapis.com/events/v1/events/query", {
+  const res = await fetch("https://www.wixapis.com/events/v3/events/query", {
     method: "POST",
     headers: {
       Authorization: apiKey,
@@ -35,11 +36,11 @@ async function fetchFromWix(apiKey, siteId) {
     },
     body: JSON.stringify({
       query: {
-        filter: { status: { $in: ["SCHEDULED", "STARTED"] } },
-        sort: [{ fieldName: "scheduling.config.startDate", order: "ASC" }],
+        filter: { status: { $in: ["UPCOMING", "STARTED"] } },
+        sort: [{ fieldName: "dateAndTimeSettings.startDate", order: "ASC" }],
         paging: { limit: 100, offset: 0 },
       },
-      fieldset: ["FULL"],
+      fields: ["DETAILS", "TEXTS", "REGISTRATION", "URLS"],
     }),
   });
   if (!res.ok) {
@@ -67,30 +68,33 @@ function geo(addr) {
 
 /** Plukker ut det appen trenger - robust mot smaa endringer hos Wix. */
 function normalize(e) {
-  const sched = e.scheduling || {};
-  const cfg = sched.config || {};
+  const dts = e.dateAndTimeSettings || {};
   const loc = e.location || {};
   const addr = loc.address || {};
   const reg = e.registration || {};
-  const ticketing = reg.ticketing || {};
-  const lowest = ticketing.lowestTicketPrice || ticketing.lowestPrice || null;
+  const ticketing = reg.tickets || {};
+  const lowest = ticketing.lowestPrice || null;
   const slug = e.slug || null;
   const { lat, lon } = geo(addr);
   return {
     id: e.id,
     title: (e.title || "").trim(),
-    description: (e.description || e.about || "").trim().slice(0, MAX_DESCRIPTION),
-    start: cfg.startDate || sched.startDate || null,
-    end: cfg.endDate || sched.endDate || null,
-    formatted: sched.formatted || null,
-    timeZone: cfg.timeZoneId || "Europe/Oslo",
+    description: (e.description || e.shortDescription || "")
+      .trim()
+      .slice(0, MAX_DESCRIPTION),
+    start: dts.startDate || null,
+    end: dts.endDate || null,
+    formatted: (dts.formatted && dts.formatted.dateAndTime) || null,
+    timeZone: dts.timeZoneId || "Europe/Oslo",
     locationName: loc.name || null,
     address: addr.formatted || addr.formattedAddress || null,
     lat,
     lon,
     online: loc.type === "ONLINE",
     image: imageUrl(e.mainImage),
-    url: slug ? `${SITE_URL}/event-details/${slug}` : `${SITE_URL}/turer`,
+    url:
+      e.eventPageUrl ||
+      (slug ? `${SITE_URL}/event-details/${slug}` : `${SITE_URL}/turer`),
     registrationType: reg.type || null,
     registrationOpen: reg.status
       ? reg.status === "OPEN_TICKETS" || reg.status === "OPEN_RSVP"
