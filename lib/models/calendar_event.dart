@@ -79,25 +79,28 @@ class CalendarEvent {
     if (address != null && address!.isNotEmpty) address!,
   ].join(', ');
 
+  /// Tåler at felt mangler eller har feil type (f.eks. objekt i stedet for
+  /// tekst), så én rar oppføring fra Wix ikke velter hele kalenderen.
   static CalendarEvent? fromJson(Map<String, dynamic> j) {
-    final start = DateTime.tryParse(j['start'] as String? ?? '');
+    String? str(dynamic v) => v is String ? v : null;
+    final start = DateTime.tryParse(str(j['start']) ?? '');
     if (start == null) return null;
     double? toD(dynamic v) => v is num ? v.toDouble() : null;
     return CalendarEvent(
-      id: j['id'] as String? ?? j['url'] as String? ?? '',
-      title: j['title'] as String? ?? '',
-      description: j['description'] as String? ?? '',
+      id: str(j['id']) ?? str(j['url']) ?? '',
+      title: str(j['title']) ?? '',
+      description: str(j['description']) ?? '',
       start: start.toLocal(),
-      end: DateTime.tryParse(j['end'] as String? ?? '')?.toLocal(),
-      formatted: j['formatted'] as String?,
-      locationName: j['locationName'] as String?,
-      address: j['address'] as String?,
+      end: DateTime.tryParse(str(j['end']) ?? '')?.toLocal(),
+      formatted: str(j['formatted']),
+      locationName: str(j['locationName']),
+      address: str(j['address']),
       lat: toD(j['lat']),
       lon: toD(j['lon']),
-      image: j['image'] as String?,
-      url: j['url'] as String? ?? 'https://www.norgeskompasset.no/turer',
+      image: str(j['image']),
+      url: str(j['url']) ?? 'https://www.norgeskompasset.no/turer',
       price: toD(j['price']),
-      currency: j['currency'] as String?,
+      currency: str(j['currency']),
       soldOut: j['soldOut'] == true,
       registrationOpen: j['registrationOpen'] as bool?,
     );
