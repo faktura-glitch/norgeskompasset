@@ -124,23 +124,25 @@ double estimateHikingMinutes(
 /// for an even sample of ~200 points and the rest are left empty on
 /// purpose, so a point count would call a fully covered route "61 %".
 /// A stretch between two elevated points counts as covered unless the
-/// gap is implausibly long (over 500 m or 2 % of the route).
+/// gap is implausibly long compared with the rest of the sample (over
+/// three times the typical gap, and over 500 m / 2 % of the route).
 double elevationCoverage(List<RoutePoint> points) {
   if (points.length < 2) return 0;
   final cum = cumulativeDistances(points);
   final total = cum.last;
   if (total <= 0) return 0;
-  final maxGap = max(500.0, total * 0.02);
-  var covered = 0.0;
+  final gaps = <double>[];
   int? last;
   for (var i = 0; i < points.length; i++) {
     if (points[i].elevation == null) continue;
-    if (last != null) {
-      final gap = cum[i] - cum[last];
-      if (gap <= maxGap) covered += gap;
-    }
+    if (last != null) gaps.add(cum[i] - cum[last]);
     last = i;
   }
+  if (gaps.isEmpty) return 0;
+  final sorted = [...gaps]..sort();
+  final median = sorted[sorted.length ~/ 2];
+  final maxGap = max(max(500.0, total * 0.02), median * 3);
+  final covered = gaps.where((g) => g <= maxGap).fold(0.0, (s, g) => s + g);
   return (covered / total).clamp(0.0, 1.0);
 }
 

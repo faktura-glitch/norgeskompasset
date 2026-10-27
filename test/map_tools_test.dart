@@ -70,6 +70,16 @@ void main() {
       expect(c, lessThan(0.55));
     });
 
+    test('a sparse route with elevation on every point is fully covered', () {
+      expect(
+        elevationCoverage([
+          RoutePoint(60, 8, elevation: 100),
+          RoutePoint(60.05, 8, elevation: 300),
+        ]),
+        1.0,
+      );
+    });
+
     test('no elevation at all is zero', () {
       expect(elevationCoverage([RoutePoint(60, 8), RoutePoint(60.1, 8)]), 0);
     });
