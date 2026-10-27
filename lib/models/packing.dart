@@ -149,3 +149,44 @@ class PackingItem {
     consumable: j['consumable'] as bool? ?? false,
   );
 }
+
+/// How ready the pack is. Missing safety or navigation gear blocks
+/// "ready" harder than other required items.
+enum PackReadiness { ready, almost, notReady }
+
+/// Categories where a missing required item makes the trip unsafe,
+/// not just less comfortable.
+const safetyCriticalCategories = {
+  PackingCategory.safetyFirstAid,
+  PackingCategory.navigation,
+};
+
+extension PackingListX on Iterable<PackingItem> {
+  /// Required items still to go in the pack (worn items never do).
+  Iterable<PackingItem> get missingRequired => where(
+    (i) => !i.packed && !i.worn && i.priority == PackingPriority.required,
+  );
+
+  int get missingSafetyCount => missingRequired
+      .where((i) => safetyCriticalCategories.contains(i.category))
+      .length;
+
+  PackReadiness get readiness {
+    if (missingSafetyCount > 0) return PackReadiness.notReady;
+    if (missingRequired.isNotEmpty) return PackReadiness.almost;
+    return PackReadiness.ready;
+  }
+
+  /// Pack weight per category, heaviest first. Worn items are left
+  /// out — they are carried on the body, not in the pack.
+  List<(PackingCategory, double)> get packWeightByCategory {
+    final sums = <PackingCategory, double>{};
+    for (final i in where((i) => !i.worn)) {
+      sums[i.category] = (sums[i.category] ?? 0) + i.totalWeightGrams;
+    }
+    return [
+      for (final e in sums.entries)
+        if (e.value > 0) (e.key, e.value),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+  }
+}

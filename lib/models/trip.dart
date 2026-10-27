@@ -351,11 +351,7 @@ class Trip {
 
   /// Required items still to go in the pack. Worn items (boots, hiking
   /// clothes) never sit in the pack, so they are not counted as missing.
-  int get missingRequiredCount => packingList
-      .where(
-        (i) => !i.packed && !i.worn && i.priority == PackingPriority.required,
-      )
-      .length;
+  int get missingRequiredCount => packingList.missingRequired.length;
 
   Map<String, dynamic> toJson() => {
     'id': id,

@@ -415,6 +415,9 @@ class _ProfileCard extends StatelessWidget {
     final weight = TextEditingController(
       text: p.weightKg > 0 ? p.weightKg.toStringAsFixed(0) : '',
     );
+    final packLimit = TextEditingController(
+      text: p.packLimitKg > 0 ? p.packLimitKg.toStringAsFixed(0) : '',
+    );
     final medical = TextEditingController(text: p.medicalNotes);
     final iceName = TextEditingController(text: p.iceName);
     final icePhone = TextEditingController(text: p.icePhone);
@@ -622,6 +625,18 @@ class _ProfileCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
+                            TextField(
+                              controller: packLimit,
+                              decoration: const InputDecoration(
+                                labelText: 'Maks sekkvekt (kg)',
+                                hintText: 'Valgfritt – pakkelisten sier fra når du er over',
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
@@ -762,6 +777,11 @@ class _ProfileCard extends StatelessWidget {
           medicalNotes: medical.text.trim(),
           weightKg: double.tryParse(weight.text.replaceAll(',', '.')) ?? 0,
           level: level,
+          packLimitKg:
+              (double.tryParse(packLimit.text.replaceAll(',', '.')) ?? 0)
+                  .clamp(0, 100)
+                  .toDouble(),
+          gear: state.profile.gear,
         ),
       );
     }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'packing.dart';
 import 'trip.dart' show TripSeason;
 
 /// Self-assessed touring level — drives the "kan du klare turen?"
@@ -26,6 +27,38 @@ extension TourLevelX on TourLevel {
     TourLevel.intermediate => 900,
     TourLevel.experienced => 1500,
   };
+}
+
+/// Gear the user registered once («Mitt utstyr») and reuses on
+/// later trips with its real weight.
+class OwnedGear {
+  final String name;
+  final PackingCategory category;
+  final double unitWeightGrams;
+  final bool worn;
+
+  const OwnedGear({
+    required this.name,
+    required this.category,
+    this.unitWeightGrams = 0,
+    this.worn = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'category': category.name,
+    'weight': unitWeightGrams,
+    if (worn) 'worn': true,
+  };
+
+  factory OwnedGear.fromJson(Map<String, dynamic> j) => OwnedGear(
+    name: j['name'] as String? ?? '',
+    category:
+        PackingCategory.values.asNameMap()[j['category']] ??
+        PackingCategory.additional,
+    unitWeightGrams: (j['weight'] as num?)?.toDouble() ?? 0,
+    worn: j['worn'] as bool? ?? false,
+  );
 }
 
 /// App-level personal profile. Trip-independent — it travels with the
@@ -91,6 +124,13 @@ class UserProfile {
   /// suitability assessment only runs once the user picks a level.
   TourLevel? level;
 
+  /// Personal pack weight limit in kg. 0 means "not set" — the app
+  /// never invents a limit on the user's behalf.
+  double packLimitKg;
+
+  /// «Mitt utstyr» — sorted by name, unique by name (case-insensitive).
+  List<OwnedGear> gear;
+
   UserProfile({
     this.name = '',
     this.phone = '',
@@ -112,7 +152,23 @@ class UserProfile {
     this.medicalNotes = '',
     this.weightKg = 0,
     this.level,
-  });
+    this.packLimitKg = 0,
+    List<OwnedGear>? gear,
+  }) : gear = gear ?? [];
+
+  OwnedGear? gearNamed(String name) {
+    final key = name.trim().toLowerCase();
+    return gear.where((g) => g.name.toLowerCase() == key).firstOrNull;
+  }
+
+  /// Adds or replaces [item] (matched by name) in «Mitt utstyr».
+  void rememberGear(OwnedGear item) {
+    final key = item.name.trim().toLowerCase();
+    gear
+      ..removeWhere((g) => g.name.toLowerCase() == key)
+      ..add(item)
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
 
   /// Dietary restrictions that affect meal planning.
   List<String> get dietTags => [
@@ -141,7 +197,9 @@ class UserProfile {
       medicalNotes.isEmpty &&
       weightKg <= 0 &&
       preferredSeason == null &&
-      level == null;
+      level == null &&
+      packLimitKg <= 0 &&
+      gear.isEmpty;
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -164,6 +222,8 @@ class UserProfile {
     'medicalNotes': medicalNotes,
     'weightKg': weightKg,
     'level': level?.name,
+    if (packLimitKg > 0) 'packLimitKg': packLimitKg,
+    if (gear.isNotEmpty) 'gear': gear.map((g) => g.toJson()).toList(),
   };
 
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -192,6 +252,11 @@ class UserProfile {
       'experienced' => TourLevel.experienced,
       _ => null,
     },
+    packLimitKg: (j['packLimitKg'] as num?)?.toDouble() ?? 0,
+    gear: [
+      for (final g in j['gear'] as List? ?? const [])
+        if (g is Map) OwnedGear.fromJson(Map<String, dynamic>.from(g)),
+    ],
   );
 
   String encode() => jsonEncode(toJson());

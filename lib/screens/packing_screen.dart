@@ -6,10 +6,12 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../models/packing.dart';
 import '../models/planning_context.dart';
+import '../models/profile.dart';
 import '../models/trip.dart';
 import '../services/gear_catalog.dart';
 import '../services/planning_context.dart';
 import '../services/packing_engine.dart';
+import '../services/trip_analysis.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
 import 'map_planner_screen.dart' show showTripQuickSetup;
@@ -68,6 +70,96 @@ Future<void> showRemovedItemsSheet(BuildContext context, Trip trip) async {
           ],
         ),
       ),
+    ),
+  );
+}
+
+/// «Mitt utstyr» — gear saved from the add dialog. One tap puts an
+/// item on this trip with its saved weight.
+Future<void> showOwnedGearSheet(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final gear = state.profile.gear;
+        bool onTrip(OwnedGear g) => trip.packingList.any(
+          (i) => i.name.toLowerCase() == g.name.toLowerCase(),
+        );
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              const Text(
+                'Mitt utstyr',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                gear.isEmpty
+                    ? 'Her havner utstyr du legger til med + og «Lagre i Mitt '
+                          'utstyr». Da slipper du å skrive inn vekt og kategori '
+                          'på nytt neste tur.'
+                    : 'Trykk + for å legge en ting på denne turen.',
+                style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              for (final g in gear)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(g.name),
+                  subtitle: Text(
+                    '${g.category.label} · ${fmtWeight(g.unitWeightGrams)}'
+                    '${g.worn ? ' · på kroppen' : ''}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      onTrip(g)
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: Icon(
+                                Icons.check,
+                                color: NkColors.forestGreen,
+                              ),
+                            )
+                          : IconButton(
+                              tooltip: 'Legg på turen',
+                              icon: const Icon(Icons.add_circle_outline),
+                              onPressed: () async {
+                                trip.packingList.add(
+                                  PackingItem(
+                                    id: const Uuid().v4().substring(0, 8),
+                                    name: g.name,
+                                    category: g.category,
+                                    unitWeightGrams: g.unitWeightGrams,
+                                    worn: g.worn,
+                                    userAdded: true,
+                                  ),
+                                );
+                                await state.saveTrip(trip);
+                                if (ctx.mounted) setS(() {});
+                              },
+                            ),
+                      IconButton(
+                        tooltip: 'Slett fra Mitt utstyr',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          state.profile.gear.remove(g);
+                          await state.updateProfile(state.profile);
+                          if (ctx.mounted) setS(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }
@@ -245,6 +337,7 @@ class _PackingScreenState extends State<PackingScreen> {
                   value: 'removed',
                   child: Text('Fjernede gjenstander…'),
                 ),
+                PopupMenuItem(value: 'owned', child: Text('Mitt utstyr…')),
               ],
             ),
         ],
@@ -295,6 +388,8 @@ class _PackingScreenState extends State<PackingScreen> {
       if (ok) await state.generatePackingList(trip);
     } else if (v == 'removed') {
       await showRemovedItemsSheet(context, trip);
+    } else if (v == 'owned') {
+      await showOwnedGearSheet(context, trip);
     } else if (v == 'optimize') {
       final engine = PackingEngine();
       final notes = engine.describeOptimization(trip);
@@ -351,13 +446,19 @@ class _PackingScreenState extends State<PackingScreen> {
   }
 
   void _addItem(BuildContext context, Trip trip) {
-    final name = TextEditingController();
+    final library = context.read<AppState>().profile.gear;
+    var name = TextEditingController();
     final weight = TextEditingController();
+    final quantity = TextEditingController(text: '1');
+    final note = TextEditingController();
     PackingCategory cat = PackingCategory.additional;
+    var priority = PackingPriority.recommended;
     var worn = false;
     var needsAcquisition = false;
+    var remember = true;
     String? weightError;
     String? nameError;
+    String? quantityError;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -367,25 +468,67 @@ class _PackingScreenState extends State<PackingScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: name,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: 'Navn',
-                    errorText: nameError,
-                  ),
+                Autocomplete<OwnedGear>(
+                  optionsBuilder: (v) {
+                    final q = v.text.trim().toLowerCase();
+                    if (q.isEmpty) return const Iterable<OwnedGear>.empty();
+                    return library.where(
+                      (g) => g.name.toLowerCase().contains(q),
+                    );
+                  },
+                  displayStringForOption: (g) => g.name,
+                  onSelected: (g) => setD(() {
+                    weight.text = g.unitWeightGrams.round().toString();
+                    cat = g.category;
+                    worn = g.worn;
+                  }),
+                  fieldViewBuilder: (ctx, controller, focus, onSubmit) {
+                    name = controller;
+                    return TextField(
+                      controller: controller,
+                      focusNode: focus,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Navn',
+                        errorText: nameError,
+                        helperText: library.isEmpty
+                            ? null
+                            : 'Skriv for å hente fra Mitt utstyr',
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: weight,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Vekt per stk (gram)',
-                    errorText: weightError,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 70,
+                      child: TextField(
+                        controller: quantity,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Antall',
+                          errorText: quantityError,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: weight,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Vekt per stk (gram)',
+                          errorText: weightError,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<PackingCategory>(
+                  key: ValueKey(cat),
                   initialValue: cat,
                   decoration: const InputDecoration(labelText: 'Kategori'),
                   items: [
@@ -393,6 +536,33 @@ class _PackingScreenState extends State<PackingScreen> {
                       DropdownMenuItem(value: c, child: Text(c.label)),
                   ],
                   onChanged: (v) => setD(() => cat = v!),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<PackingPriority>(
+                  initialValue: priority,
+                  decoration: const InputDecoration(labelText: 'Viktighet'),
+                  items: [
+                    for (final p in PackingPriority.values)
+                      DropdownMenuItem(value: p, child: Text(p.label)),
+                  ],
+                  onChanged: (v) => setD(() => priority = v!),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: note,
+                  decoration: const InputDecoration(
+                    labelText: 'Kommentar (valgfritt)',
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Lagre i Mitt utstyr'),
+                  subtitle: const Text(
+                    'Neste gang fylles vekt og kategori ut automatisk',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: remember,
+                  onChanged: (v) => setD(() => remember = v),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -433,21 +603,46 @@ class _PackingScreenState extends State<PackingScreen> {
                       ? 'Oppgi en gyldig vekt i gram'
                       : null;
                 });
-                if (nameError != null || weightError != null || grams == null) {
+                final count = int.tryParse(quantity.text.trim());
+                setD(
+                  () => quantityError = count == null || count < 1 || count > 99
+                      ? '1–99'
+                      : null,
+                );
+                if (nameError != null ||
+                    weightError != null ||
+                    quantityError != null ||
+                    grams == null ||
+                    count == null) {
                   return;
                 }
+                final state = context.read<AppState>();
                 trip.packingList.add(
                   PackingItem(
                     id: const Uuid().v4().substring(0, 8),
                     name: name.text.trim(),
                     category: cat,
+                    quantity: count.toDouble(),
                     unitWeightGrams: grams,
+                    priority: priority,
                     worn: worn,
+                    reason: note.text.trim().isEmpty ? null : note.text.trim(),
                     needsAcquisition: needsAcquisition,
                     userAdded: true,
                   ),
                 );
-                await context.read<AppState>().saveTrip(trip);
+                await state.saveTrip(trip);
+                if (remember) {
+                  state.profile.rememberGear(
+                    OwnedGear(
+                      name: name.text.trim(),
+                      category: cat,
+                      unitWeightGrams: grams,
+                      worn: worn,
+                    ),
+                  );
+                  await state.updateProfile(state.profile);
+                }
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Legg til'),
@@ -708,6 +903,31 @@ class _PackingBody extends StatelessWidget {
   }
 }
 
+class _WeightRow extends StatelessWidget {
+  final String label;
+  final double grams;
+  final bool bold;
+  const _WeightRow(this.label, this.grams, {this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontSize: 11,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.normal,
+      color: bold ? null : NkColors.textSecondary,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: style)),
+          Text(fmtWeight(grams), style: style),
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   final Trip trip;
   final _Filter filter;
@@ -752,6 +972,27 @@ class _Header extends StatelessWidget {
         .where((i) => i.packed)
         .fold(0.0, (s, i) => s + i.totalWeightGrams);
     final weightProgress = totalGrams > 0 ? packedGrams / totalGrams : 0.0;
+    final packWeight = equipment + consumables;
+    final limitGrams =
+        context.select<AppState, double>((s) => s.profile.packLimitKg) * 1000;
+    final overLimit = limitGrams > 0 && packWeight > limitGrams;
+    final missing = trip.missingRequiredCount;
+    final missingSafety = items.missingSafetyCount;
+    final (statusColor, statusText) = switch (items.readiness) {
+      PackReadiness.ready => (
+        NkColors.forestGreen,
+        'Turklar – alt nødvendig er pakket',
+      ),
+      PackReadiness.almost => (
+        NkColors.warningAmber,
+        'Nesten klar – ${fmtCount(missing, 'nødvendig ting', 'nødvendige ting')} mangler',
+      ),
+      PackReadiness.notReady => (
+        NkColors.dangerRed,
+        'Ikke klar – ${fmtCount(missingSafety, 'sikkerhetsting', 'sikkerhetsting')} mangler'
+            '${missing > missingSafety ? ' (+${missing - missingSafety} andre nødvendige)' : ''}',
+      ),
+    };
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -818,17 +1059,31 @@ class _Header extends StatelessWidget {
                               fontSize: 16,
                             ),
                           ),
-                          Text(
-                            trip.missingRequiredCount > 0
-                                ? '${fmtCount(trip.missingRequiredCount, 'nødvendig ting', 'nødvendige ting')} mangler  ·  ${fmtWeight(totalGrams - packedGrams)} igjen'
-                                : '${fmtWeight(totalGrams - packedGrams)} igjen i sekken',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: trip.missingRequiredCount > 0
-                                  ? NkColors.dangerRed
-                                  : NkColors.textSecondary,
-                            ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.circle, size: 9, color: statusColor),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  statusText,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          if (totalGrams - packedGrams > 0)
+                            Text(
+                              'Igjen å pakke: ${fmtWeight(totalGrams - packedGrams)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: NkColors.textSecondary,
+                              ),
+                            ),
                           ExpansionTile(
                             tilePadding: EdgeInsets.zero,
                             childrenPadding: const EdgeInsets.only(bottom: 4),
@@ -839,24 +1094,48 @@ class _Header extends StatelessWidget {
                             expandedCrossAxisAlignment:
                                 CrossAxisAlignment.start,
                             title: Text(
-                              'Total bærevekt (estimert): ${fmtWeight(equipment + consumables + worn)}',
-                              style: const TextStyle(
+                              'Sekkvekt (estimert): ${fmtWeight(packWeight)}'
+                              '${limitGrams <= 0
+                                  ? ''
+                                  : overLimit
+                                  ? '  ·  ${fmtWeight(packWeight - limitGrams)} over grensen din'
+                                  : '  ·  innenfor grensen (${fmtWeight(limitGrams)})'}',
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: NkColors.primaryBlue,
+                                color: overLimit
+                                    ? NkColors.dangerRed
+                                    : NkColors.primaryBlue,
                               ),
                             ),
                             children: [
-                              Text(
-                                'Grunnvekt: ${fmtWeight(equipment)}'
-                                '  ·  Startvekt: ${fmtWeight(equipment + consumables)}'
-                                '${worn > 0 ? '  ·  På kroppen: ${fmtWeight(worn)}' : ''}'
-                                '${food > 0 || consumables > food + water ? '  ·  (forbruksvarer ${fmtWeight(consumables)}${food > 0 ? ', herav mat ${fmtWeight(food)}' : ''}${water > 0 ? ' + vann ${fmtWeight(water)}' : ''})' : ''}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: NkColors.textSecondary,
+                              for (final (cat, grams)
+                                  in items.packWeightByCategory)
+                                _WeightRow(cat.label, grams),
+                              const Divider(height: 10),
+                              _WeightRow('Utstyr (grunnvekt)', equipment),
+                              if (consumables > 0)
+                                _WeightRow(
+                                  'Forbruksvarer${food > 0 || water > 0 ? ' (mat ${fmtWeight(food)}, vann ${fmtWeight(water)})' : ''}',
+                                  consumables,
                                 ),
+                              if (worn > 0) _WeightRow('På kroppen', worn),
+                              _WeightRow(
+                                'Total bærevekt',
+                                packWeight + worn,
+                                bold: true,
                               ),
+                              if (limitGrams <= 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Tips: sett en maks sekkvekt i Min profil, så sier appen fra når du er over.',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: NkColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -1447,6 +1726,9 @@ class _PlanningBasis extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<AppState>().profile;
     final ctx = PlanningContextBuilder.forTrip(trip, profile);
+    final fetched = trip.weather.values
+        .map((s) => s.retrievedAt)
+        .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
     final facts = <String>[
       '${ctx.activity.label} · ${ctx.carry.label}',
       if (ctx.distanceKm != null)
@@ -1456,6 +1738,9 @@ class _PlanningBasis extends StatelessWidget {
         ctx.routeLabel,
       ctx.weatherLabel +
           (ctx.minTempC != null ? ' (min ${ctx.minTempC!.round()} °C)' : ''),
+      if (fetched != null)
+        'Vær ${fmtAge(fetched)}'
+            '${DateTime.now().difference(fetched) > TripAnalysis.forecastMaxAge ? ' – bør oppdateres' : ''}',
       ctx.avalancheBasis.label +
           (ctx.maxDangerLevel != null
               ? ' (faregrad ${ctx.maxDangerLevel})'
