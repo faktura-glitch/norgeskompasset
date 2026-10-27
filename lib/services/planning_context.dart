@@ -208,14 +208,14 @@ abstract final class PlanningContextBuilder {
           : '';
       if (snowMax >= 30) {
         checks.add(
-          'Snø langs ruten (seNorge): inntil ${snowMax.round()} cm$freshText. '
+          'Snø langs ruten: inntil ${snowMax.round()} cm nå$freshText (seNorge). '
           '${cond.activity == TripActivity.foot ? 'Vurder truger eller ski – det går mye tyngre i løssnø. ' : ''}'
           'Modellert i 1 km rutenett, lokale avvik må påregnes.',
         );
       } else if (snowMax >= 5) {
         checks.add(
-          'Litt snø langs ruten (seNorge: inntil ${snowMax.round()} cm$freshText) '
-          '– regn med glatte partier og vått fottøy.',
+          'Litt snø langs ruten: inntil ${snowMax.round()} cm nå$freshText '
+          '(seNorge) – regn med glatte partier og vått fottøy.',
         );
       } else {
         checks.add(

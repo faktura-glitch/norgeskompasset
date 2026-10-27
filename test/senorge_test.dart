@@ -50,7 +50,7 @@ void main() {
     expect(PackingEngine().conditionsFor(trip, null).snow, isFalse);
 
     trip.snow = [sample(45), sample(10)];
-    expect(trip.snowSummary, 'inntil 45 cm, 12 cm nysnø siste 3 døgn');
+    expect(trip.snowSummary, 'inntil 45 cm nå, 12 cm nysnø siste 3 døgn');
     final cond = PackingEngine().conditionsFor(trip, null);
     expect(cond.snow, isTrue);
     expect(cond.snowDepthCm, 45);

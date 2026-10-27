@@ -304,7 +304,7 @@ class Trip {
     if (depth == null) return null;
     if (depth < 2) return 'barmark';
     final fresh = maxFreshSnowCm ?? 0;
-    return 'inntil ${depth.round()} cm'
+    return 'inntil ${depth.round()} cm nå'
         '${fresh >= 1 ? ', ${fresh.round()} cm nysnø siste 3 døgn' : ''}';
   }
 
