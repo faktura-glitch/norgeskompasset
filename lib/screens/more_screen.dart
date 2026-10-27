@@ -330,6 +330,45 @@ class MoreScreen extends StatelessWidget {
           const SectionHeader('Om appen', icon: Icons.info_outline),
           const SizedBox(height: 10),
           NkCard(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/branding/logo.jpg',
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'NorgesKompasset',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'Turplanlegging for norske forhold · norgeskompasset.no',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: NkColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          NkCard(
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(

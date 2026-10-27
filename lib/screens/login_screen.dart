@@ -176,7 +176,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.explore, color: Colors.white, size: 52),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/branding/logo.jpg',
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.cover,
+                        semanticLabel: 'NorgesKompasset-logo',
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     const Text(
                       'NorgesKompasset',
