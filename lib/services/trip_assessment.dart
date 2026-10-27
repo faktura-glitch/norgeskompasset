@@ -152,6 +152,14 @@ class TripAssessment {
       );
     }
 
+    final snow = trip.maxSnowDepthCm;
+    if (snow != null && snow >= 30 && trip.activity == TripActivity.foot) {
+      add(
+        1,
+        'Snø på ruten (inntil ${snow.round()} cm ifølge seNorge) – mye '
+        'tyngre å gå uten truger eller ski.',
+      );
+    }
     if (trip.avalancheTerrain == true) {
       add(
         2,

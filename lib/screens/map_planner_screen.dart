@@ -1149,9 +1149,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                           'Bratthetskart fra NVE: farget terreng er brattere enn 27° – jo mørkere, jo brattere. Snøskred løsner oftest i 30–45°. Sjekk alltid varsom.no.',
                         );
                       }
-                    } else if (v == 'ski-overlay') {
+                    } else if (v == 'trails' &&
+                        _trip?.activity == TripActivity.ski) {
                       setState(() => _mapSettings.skiOverride = !_skiOverlay);
-                    } else if (v == 'turinfo') {
+                    } else if (v == 'trails') {
                       setState(() {
                         final on = !_trailLayer;
                         _trailLayer = on;
@@ -1186,21 +1187,13 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     }
                   },
                   itemBuilder: (_) => [
-                    PopupMenuItem(
-                      enabled: false,
-                      child: Text(
-                        'Viser: ${_mapSettings.activeBaseLabel(_mapZoom ?? 7)}'
-                        '${_mapSettings.baseOverride == null ? ' (auto)' : ''}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: NkColors.textSecondary,
-                        ),
-                      ),
-                    ),
                     CheckedPopupMenuItem(
                       value: 'automatic',
                       checked: _mapSettings.automatic,
-                      child: const Text('Automatisk kartvalg'),
+                      child: Text(
+                        'Automatisk · nå: '
+                        '${_mapSettings.activeBaseLabel(_mapZoom ?? 7)}',
+                      ),
                     ),
                     const PopupMenuDivider(),
                     const PopupMenuItem(
@@ -1216,20 +1209,23 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       child: Text('OpenStreetMap'),
                     ),
                     const PopupMenuDivider(),
+                    // One «trails» toggle: ski tracks on a ski trip,
+                    // marked hiking trails otherwise.
                     CheckedPopupMenuItem(
-                      value: 'ski-overlay',
-                      checked: _skiOverlay,
-                      child: const Text('Skiløyper · ikke prepareringsstatus'),
+                      value: 'trails',
+                      checked: _trip?.activity == TripActivity.ski
+                          ? _skiOverlay
+                          : _trailLayer,
+                      child: Text(
+                        _trip?.activity == TripActivity.ski
+                            ? 'Skiløyper · ikke prepareringsstatus'
+                            : 'Merkede stier og turruter',
+                      ),
                     ),
                     CheckedPopupMenuItem(
                       value: 'bratthet',
                       checked: _steepnessLayer,
                       child: const Text('Bratthet (NVE) · skredterreng'),
-                    ),
-                    CheckedPopupMenuItem(
-                      value: 'turinfo',
-                      checked: _trailLayer,
-                      child: const Text('Registrerte stier (Kartverket)'),
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
@@ -3018,6 +3014,13 @@ class _RouteSummary extends StatelessWidget {
                   difficultyColor(hardest.difficulty!.level),
                 ),
               ],
+            ),
+          ],
+          if (trip.snowSummary != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Snø langs ruten: ${trip.snowSummary} (seNorge, 1 km rutenett)',
+              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
             ),
           ],
           if (assessment != null) ...[

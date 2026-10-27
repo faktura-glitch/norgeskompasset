@@ -1,3 +1,4 @@
+import '../core/format.dart';
 import '../core/geo.dart';
 import '../models/gear.dart';
 import '../models/planning_context.dart';
@@ -198,6 +199,30 @@ abstract final class PlanningContextBuilder {
       checks.add(
         'Skredfare er ikke vurdert – sjekk varsom.no og terrenget på ruten.',
       );
+    }
+    final snowMax = trip.maxSnowDepthCm;
+    if (snowMax != null) {
+      final fresh = trip.maxFreshSnowCm ?? 0;
+      final freshText = fresh >= 1
+          ? ', ${fresh.round()} cm nysnø siste 3 døgn'
+          : '';
+      if (snowMax >= 30) {
+        checks.add(
+          'Snø langs ruten (seNorge): inntil ${snowMax.round()} cm$freshText. '
+          '${cond.activity == TripActivity.foot ? 'Vurder truger eller ski – det går mye tyngre i løssnø. ' : ''}'
+          'Modellert i 1 km rutenett, lokale avvik må påregnes.',
+        );
+      } else if (snowMax >= 5) {
+        checks.add(
+          'Litt snø langs ruten (seNorge: inntil ${snowMax.round()} cm$freshText) '
+          '– regn med glatte partier og vått fottøy.',
+        );
+      } else {
+        checks.add(
+          'Barmark langs ruten ifølge seNorge (1 km rutenett, '
+          '${fmtDate(trip.snow.first.date)}).',
+        );
+      }
     }
     if (cond.cabin) {
       if (cond.variedCabins) {

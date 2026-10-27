@@ -15,6 +15,8 @@ import '../core/energy.dart';
 import '../core/format.dart';
 import '../core/geo.dart';
 import '../models/alert.dart';
+import '../models/snow.dart';
+import '../services/senorge_service.dart';
 import '../models/calendar_event.dart';
 import '../models/catalog_trip.dart';
 import '../models/packing.dart';
@@ -51,6 +53,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final routingService = RoutingService();
   final geocodingService = GeocodingService();
   final varsomService = VarsomService();
+  final senorgeService = SenorgeService();
   final packingEngine = PackingEngine();
   final recommendationEngine = RecommendationEngine();
 
@@ -358,6 +361,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     fetched.review = null;
     fetched.alerts = [];
     fetched.avalancheWarnings = [];
+    fetched.snow = [];
     fetched.weather = {};
     trips.insert(0, fetched);
     currentTripId = fetched.id;
@@ -881,6 +885,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     trip.weather = {};
     trip.alerts = [];
     trip.avalancheWarnings = [];
+    trip.snow = [];
     trip.avalancheTerrain = null;
     _recomputeStages(trip);
     await _refreshPlan(trip, generateMissing: true);
@@ -946,6 +951,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     trip.weather = {};
     trip.alerts = [];
     trip.avalancheWarnings = [];
+    trip.snow = [];
     trip.avalancheTerrain = null;
     await _refreshPlan(trip);
   }
@@ -1035,6 +1041,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       trip.weather = {};
       trip.alerts = [];
       trip.avalancheWarnings = [];
+      trip.snow = [];
     }
     _recomputeStages(trip);
     await _refreshPlan(trip);
@@ -1172,6 +1179,38 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         ];
       } catch (_) {
         // Varsom failure must not break weather fetch — keep old data.
+      }
+      // Snow depth (seNorge/NVE) at each stage's midpoint for the
+      // stage date (or today, for dates ahead). Also optional.
+      try {
+        final midRoute = trip.route?.hasRoute == true
+            ? trip.route!.points[trip.route!.points.length ~/ 2].latLng
+            : null;
+        final targets = <(LatLng, DateTime?, int?, String)>[
+          for (final s in trip.stages)
+            if (s.points.isNotEmpty)
+              (
+                s.points[s.points.length ~/ 2].latLng,
+                s.date,
+                s.number,
+                s.endName,
+              ),
+          if (trip.stages.isEmpty && midRoute != null)
+            (midRoute, trip.startDate, null, ''),
+        ];
+        final samples = await Future.wait<SnowSample>([
+          for (final (ll, date, n, name) in targets)
+            senorgeService.fetchSnow(
+              ll.latitude,
+              ll.longitude,
+              date ?? DateTime.now(),
+              stageNumber: n,
+              name: name,
+            ),
+        ]);
+        trip.snow = samples;
+      } catch (_) {
+        // seNorge failure must not break weather fetch — keep old data.
       }
       // The packing rules read the forecast (min temp, rain, wind,
       // freezing nights) — regenerate so the list reflects it.

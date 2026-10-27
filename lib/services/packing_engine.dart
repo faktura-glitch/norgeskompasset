@@ -46,6 +46,10 @@ class PackingEngine {
     final shoulder =
         trip.season == TripSeason.spring || trip.season == TripSeason.autumn;
     if (winter || shoulder) cold = true;
+    // Real snow on the ground (seNorge) counts like winter for
+    // shelter and footwear, whatever the calendar says.
+    final snowDepth = trip.maxSnowDepthCm;
+    final snowOnGround = (snowDepth ?? 0) >= 20;
 
     // Avalanche gear follows terrain risk, not season alone. An
     // explicit user answer wins; fetched Varsom warnings always mean
@@ -80,8 +84,9 @@ class PackingEngine {
       minTemp: minTemp,
       rain: rain,
       strongWind: wind,
-      snow: winter,
-      cold: cold,
+      snow: winter || snowOnGround,
+      cold: cold || snowOnGround,
+      snowDepthCm: snowDepth,
       // Short daylight outside summer makes a headlamp essential.
       darkEvenings: trip.hikingDays > 1 || shoulder || winter,
       avalanche: avalanche,

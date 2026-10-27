@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'alert.dart';
 import 'avalanche.dart';
+import 'snow.dart';
 import 'meal.dart';
 import 'packing.dart';
 import 'recommendation.dart';
@@ -281,6 +283,31 @@ class Trip {
   /// trip dates. Empty outside the warning season.
   List<AvalancheWarning> avalancheWarnings;
 
+  /// Modelled snow depth (seNorge/NVE) at one point per stage,
+  /// fetched together with the weather. Empty until fetched.
+  List<SnowSample> snow;
+
+  double? get maxSnowDepthCm {
+    final v = snow.map((s) => s.depthCm).whereType<double>().toList();
+    return v.isEmpty ? null : v.reduce(max);
+  }
+
+  double? get maxFreshSnowCm {
+    final v = snow.map((s) => s.freshCm3d).whereType<double>().toList();
+    return v.isEmpty ? null : v.reduce(max);
+  }
+
+  /// «inntil 45 cm, 12 cm nysnø siste 3 døgn» or «barmark»; null
+  /// before snow data is fetched.
+  String? get snowSummary {
+    final depth = maxSnowDepthCm;
+    if (depth == null) return null;
+    if (depth < 2) return 'barmark';
+    final fresh = maxFreshSnowCm ?? 0;
+    return 'inntil ${depth.round()} cm'
+        '${fresh >= 1 ? ', ${fresh.round()} cm nysnø siste 3 døgn' : ''}';
+  }
+
   /// User-confirmed terrain assessment: true = route may cross avalanche
   /// terrain, false = confirmed outside it, null = unknown. Unknown is
   /// treated as uncertain for winter/ski trips — avalanche gear is then
@@ -337,6 +364,7 @@ class Trip {
     this.recommendations = const [],
     this.alerts = const [],
     this.avalancheWarnings = const [],
+    this.snow = const [],
     this.avalancheTerrain,
     this.review,
     this.trackLog = const [],
@@ -415,6 +443,7 @@ class Trip {
     'recommendations': recommendations.map((r) => r.toJson()).toList(),
     'alerts': alerts.map((a) => a.toJson()).toList(),
     'avalanche': avalancheWarnings.map((a) => a.toJson()).toList(),
+    'snow': snow.map((s) => s.toJson()).toList(),
     'avalancheTerrain': avalancheTerrain,
     'trackLog': trackLog.map((t) => t.toJson()).toList(),
     if (deletedGearIds.isNotEmpty) 'delGear': deletedGearIds.toList(),
@@ -476,6 +505,9 @@ class Trip {
         .toList(),
     avalancheWarnings: (j['avalanche'] as List? ?? [])
         .map((a) => AvalancheWarning.fromJson(Map<String, dynamic>.from(a)))
+        .toList(),
+    snow: (j['snow'] as List? ?? [])
+        .map((s) => SnowSample.fromJson(Map<String, dynamic>.from(s)))
         .toList(),
     avalancheTerrain: j['avalancheTerrain'] as bool?,
     trackLog: (j['trackLog'] as List? ?? [])

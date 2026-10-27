@@ -45,6 +45,10 @@ class TripConditions {
   final bool snow;
   final bool cold;
   final bool darkEvenings;
+
+  /// Deepest modelled snow along the route (seNorge), null when not
+  /// fetched.
+  final double? snowDepthCm;
   final AvalancheRisk avalanche;
 
   final bool withDog;
@@ -73,6 +77,7 @@ class TripConditions {
     this.snow = false,
     this.cold = false,
     this.darkEvenings = false,
+    this.snowDepthCm,
     this.avalanche = AvalancheRisk.none,
     this.withDog = false,
     this.lightPacker = false,
