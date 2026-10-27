@@ -5,7 +5,9 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../models/recommendation.dart';
 import '../models/trip.dart';
+import '../services/packing_engine.dart';
 import '../services/trip_analysis.dart';
+import '../services/trip_readiness.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
@@ -51,6 +53,8 @@ class HomeScreen extends StatelessWidget {
                       'Forberedelser',
                       icon: Icons.fact_check_outlined,
                     ),
+                    const SizedBox(height: 12),
+                    _ReadinessSummary(trip: trip),
                     const SizedBox(height: 12),
                     _ReadinessGrid(trip: trip),
                     const SizedBox(height: 24),
@@ -554,6 +558,145 @@ class _IconText extends StatelessWidget {
   }
 }
 
+/// «Er jeg klar?» across route, gear, weather, food and safety. Each
+/// remark opens the screen where it can be fixed.
+class _ReadinessSummary extends StatelessWidget {
+  final Trip trip;
+  const _ReadinessSummary({required this.trip});
+
+  void _open(BuildContext context, ReadinessArea area) {
+    context.read<AppState>().selectTrip(trip.id);
+    switch (area) {
+      case ReadinessArea.route:
+        context.read<NavController>().goTo(2);
+      case ReadinessArea.gear:
+        context.read<NavController>().goTo(3);
+      case ReadinessArea.weather:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const WeatherScreen()),
+        );
+      case ReadinessArea.food:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MealsScreen()),
+        );
+      case ReadinessArea.safety:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SafetyScreen()),
+        );
+    }
+  }
+
+  Color _color(BuildContext context, ReadinessLevel level) => switch (level) {
+    ReadinessLevel.ok => NkColors.forestGreen,
+    ReadinessLevel.check => NkColors.warningAmber,
+    ReadinessLevel.missing => Theme.of(context).colorScheme.error,
+  };
+
+  void _showAll(BuildContext context, TripReadiness r) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            Text(
+              r.headline,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Bygger på det appen vet om turen. En avkrysset liste er ikke '
+              'det samme som en trygg tur – vurder forholdene selv.',
+              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            for (final area in ReadinessArea.values)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(switch (r.levelFor(area)) {
+                  ReadinessLevel.ok => Icons.check_circle,
+                  ReadinessLevel.check => Icons.error_outline,
+                  ReadinessLevel.missing => Icons.cancel_outlined,
+                }, color: _color(ctx, r.levelFor(area))),
+                title: Text(area.label),
+                subtitle: r.levelFor(area) == ReadinessLevel.ok
+                    ? const Text('Ingen merknader')
+                    : Text(
+                        [
+                          for (final i in r.issues)
+                            if (i.area == area) i.text,
+                        ].join('\n'),
+                      ),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _open(context, area);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cond = PackingEngine().conditionsFor(
+      trip,
+      context.watch<AppState>().profile,
+    );
+    final r = TripReadiness.evaluate(trip, cond);
+    final shown = r.issues.take(3).toList();
+    return _ReadinessCard(
+      icon: Icons.verified_outlined,
+      title: 'Turklarhet',
+      progress: r.percent / 100,
+      onTap: () => _showAll(context, r),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            r.headline,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: r.ready
+                  ? NkColors.forestGreen
+                  : _color(
+                      context,
+                      r.issues
+                          .map((i) => i.level)
+                          .reduce((a, b) => a.index > b.index ? a : b),
+                    ),
+            ),
+          ),
+          for (final i in shown)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '• ${i.area.label}: ${i.text}',
+                style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
+              ),
+            ),
+          if (r.issues.length > shown.length)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '+ ${r.issues.length - shown.length} til – trykk for alt',
+                style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReadinessGrid extends StatelessWidget {
   final Trip trip;
   const _ReadinessGrid({required this.trip});
@@ -675,7 +818,7 @@ class _PackingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${fmtWeight(packedGrams)} av ${fmtWeight(totalGrams)}',
+                  '${fmtWeight(packedGrams)} av ${fmtWeight(totalGrams)} pakket',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -689,7 +832,8 @@ class _PackingCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
                 Text(
-                  'Utstyr: ${fmtWeight(equipment)}',
+                  'Utstyr ${fmtWeight(equipment)} · mat og vann '
+                  '${fmtWeight(totalGrams - equipment)}',
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
               ],
@@ -736,7 +880,9 @@ class _MealCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
                 Text(
-                  'Vann: ${fmtWeight(plan.totalWaterWeightGrams)}',
+                  plan.totalWaterWeightGrams > 0
+                      ? 'Vann: ${fmtWeight(plan.totalWaterWeightGrams)}'
+                      : 'Vann: fylles underveis',
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
               ],

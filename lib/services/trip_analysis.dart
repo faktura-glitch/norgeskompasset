@@ -15,6 +15,11 @@ class ConditionsSummary {
   final bool strongWind;
   final bool limitedVisibility;
 
+  /// Forecast hours behind [limitedVisibility]: cloud cover above 95 %
+  /// together with precipitation. MET does not forecast visibility
+  /// directly, so this is a rough proxy.
+  final int lowVisHours;
+
   const ConditionsSummary({
     this.minTemp,
     this.maxTemp,
@@ -26,6 +31,7 @@ class ConditionsSummary {
     this.rainExpected = false,
     this.strongWind = false,
     this.limitedVisibility = false,
+    this.lowVisHours = 0,
   });
 
   bool get hasData => hoursWithData > 0;
@@ -62,6 +68,7 @@ class TripAnalysis {
     double? minT, maxT, maxW, maxG;
     var precip = 0.0;
     var lowVis = false;
+    var lowVisHours = 0;
     for (final entry in byHour.entries) {
       final hs = entry.value;
       double? avg(List<double?> v) {
@@ -87,7 +94,10 @@ class TripAnalysis {
       if (w != null && (maxW == null || w > maxW)) maxW = w;
       if (g != null && (maxG == null || g > maxG)) maxG = g;
       if (p != null) precip += p;
-      if (c != null && c > 95 && p != null && p > 0) lowVis = true;
+      if (c != null && c > 95 && p != null && p > 0) {
+        lowVis = true;
+        lowVisHours++;
+      }
     }
     return ConditionsSummary(
       minTemp: minT,
@@ -100,6 +110,7 @@ class TripAnalysis {
       rainExpected: precip >= 1.0,
       strongWind: (maxW ?? 0) >= 10.8 || (maxG ?? 0) >= 15,
       limitedVisibility: lowVis,
+      lowVisHours: lowVisHours,
     );
   }
 

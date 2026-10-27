@@ -635,7 +635,8 @@ class _Alerts extends StatelessWidget {
         (
           Icons.foggy,
           NkColors.warningAmber,
-          'Tett skyddekke og nedbør kan gi dårlig sikt – vanskeligere navigasjon.',
+          'Skydekke over 95 % med nedbør i ${summary.lowVisHours} av timene kan '
+              'gi dårlig sikt – et grovt anslag, sikt varsles ikke direkte.',
         ),
       if (summary.maxTemp != null && summary.maxTemp! > 22)
         (

@@ -190,7 +190,10 @@ class RecommendationEngine {
             id: _id(),
             level: RecommendationLevel.caution,
             title: 'Begrenset sikt mulig på etappe ${stage.number}',
-            observation: 'Tett skyddekke kombinert med nedbør er varslet.',
+            observation:
+                'Skydekke over 95 % sammen med nedbør i ${c.lowVisHours} av '
+                'etappens timer (MET-varsel). Et grovt anslag – sikt varsles '
+                'ikke direkte.',
             why:
                 'Dårlig sikt gjør navigasjon krevende, særlig over tregrensen.',
             action: 'Ha kart og kompass lett tilgjengelig, og vurder å legge inn margin i dagsplanen.',

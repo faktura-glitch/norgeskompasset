@@ -326,8 +326,10 @@ class _SummaryCard extends StatelessWidget {
               InfoTile('Måltider', '${plan.meals.length}'),
               InfoTile('Matvekt totalt', fmtWeight(plan.totalFoodWeightGrams)),
               InfoTile(
-                'Vann (estimert)',
-                fmtWeight(plan.totalWaterWeightGrams),
+                plan.totalWaterWeightGrams > 0 ? 'Vann (estimert)' : 'Vann',
+                plan.totalWaterWeightGrams > 0
+                    ? fmtWeight(plan.totalWaterWeightGrams)
+                    : 'Fylles underveis',
               ),
               if (plan.totalKcalPerPerson > 0) ...[
                 InfoTile(

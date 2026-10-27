@@ -2432,6 +2432,31 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
                 ),
               ],
             ),
+            if (_accommodation == AccommodationType.dayHike && _days > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: NkColors.warningAmber,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Dagstur over ${fmtCount(_days, 'dag', 'dager')}? Velg '
+                        'overnatting, eller sett turen til én dag.',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _days = 1),
+                      child: const Text('1 dag'),
+                    ),
+                  ],
+                ),
+              ),
             if (_start == null)
               Text(
                 'Datoen trengs for å hente riktig værvarsel og sesong.',
