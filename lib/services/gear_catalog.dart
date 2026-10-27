@@ -933,7 +933,36 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     0,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.cabin},
-    reason: 'DNT-nøkkel eller booket hytteplass',
+    reasonFn: (c) => switch (c.cabinType) {
+      CabinType.staffed =>
+        'Booket plass på betjent hytte – bekreft før avreise',
+      CabinType.selfService =>
+        'DNT-nøkkel eller forhåndsbooking av selvbetjent hytte',
+      CabinType.unstaffed =>
+        'DNT-nøkkel åpner ubetjente hytter – sjekk medlemskapet',
+    },
+  ),
+  GearItem(
+    'hutpayment',
+    'Hyttebetaling (Vipps/kontanter)',
+    PackingCategory.personal,
+    0,
+    priority: PackingPriority.required,
+    consumable: true,
+    accommodation: {AccommodationType.cabin},
+    cabinTypes: {CabinType.selfService, CabinType.unstaffed},
+    reasonFn: (c) => c.cabinType == CabinType.unstaffed
+        ? 'Ubetjent hytte: betal i hyttas kasse eller per Vipps før avreise'
+        : 'Selvbetjent hytte: betal selvbetjent per Vipps eller kontanter',
+  ),
+  GearItem(
+    'dntmember',
+    'DNT-medlemsbevis (app eller kort)',
+    PackingCategory.personal,
+    0,
+    priority: PackingPriority.optional,
+    accommodation: {AccommodationType.cabin},
+    reason: 'Medlemskap gir rabatt og nøkkel til DNT-hytter',
   ),
   GearItem(
     'hutkitchen',
@@ -941,8 +970,21 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.foodKitchen,
     300,
     accommodation: {AccommodationType.cabin},
+    cabinTypes: {CabinType.selfService, CabinType.unstaffed},
     minDays: 2,
-    reason: 'Ikke anta at hytta har fullt kjøkken – sjekk betjening',
+    reasonFn: (c) => c.cabinType == CabinType.unstaffed
+        ? 'Ubetjent hytte har ingen mat – alt må bæres med'
+        : 'Proviant kan kjøpes på selvbetjente hytter, men utvalget er begrenset',
+  ),
+  GearItem(
+    'hutsnacks',
+    'Mat og snacks for dagene',
+    PackingCategory.foodKitchen,
+    200,
+    accommodation: {AccommodationType.cabin},
+    cabinTypes: {CabinType.staffed},
+    minDays: 2,
+    reason: 'Betjent hytte serverer frokost og middag – du trenger bare matpakke og snacks for dagene',
   ),
 
   // ── Kjøkken ved telttur ─────────────────────────────────

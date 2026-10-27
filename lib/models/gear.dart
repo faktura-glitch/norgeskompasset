@@ -23,6 +23,9 @@ class TripConditions {
   final TripActivity activity;
   final CarryMode carry;
   final AccommodationType accommodation;
+
+  /// Staffed/self-service/unstaffed — only read by cabin rules.
+  final CabinType cabinType;
   final TripSeason season;
   final int days;
   final int people;
@@ -55,6 +58,7 @@ class TripConditions {
     required this.activity,
     required this.carry,
     required this.accommodation,
+    this.cabinType = CabinType.selfService,
     required this.season,
     required this.days,
     required this.people,
@@ -135,6 +139,7 @@ class GearItem {
   final Set<CarryMode> excludeCarry;
   final Set<AccommodationType> accommodation;
   final Set<AccommodationType> excludeAccommodation;
+  final Set<CabinType> cabinTypes;
   final Set<TripSeason> seasons;
   final int minDays;
   final Set<WeatherFlag> needsWeather;
@@ -178,6 +183,7 @@ class GearItem {
     this.excludeCarry = const {},
     this.accommodation = const {},
     this.excludeAccommodation = const {},
+    this.cabinTypes = const {},
     this.seasons = const {},
     this.minDays = 1,
     this.needsWeather = const {},
@@ -238,6 +244,9 @@ class GearItem {
     }
     if (excludeAccommodation.contains(acc) ||
         excludeAccommodation.contains(c.accommodation)) {
+      return false;
+    }
+    if (cabinTypes.isNotEmpty && !cabinTypes.contains(c.cabinType)) {
       return false;
     }
     if (seasons.isNotEmpty && !seasons.contains(c.season)) return false;

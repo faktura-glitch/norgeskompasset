@@ -2081,6 +2081,7 @@ class _QuickSetupSheet extends StatefulWidget {
 class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late TripActivity _activity = widget.trip.activity;
   late AccommodationType _accommodation = widget.trip.accommodation;
+  late CabinType _cabinType = widget.trip.cabinType;
   late int _people = widget.trip.participants;
   late int _children = widget.trip.children;
   late CarryMode _carry = widget.trip.carry;
@@ -2164,6 +2165,7 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
           : CarryMode.backpack;
     }
     t.accommodation = _accommodation;
+    t.cabinType = _cabinType;
     t.participants = _people;
     t.children = _children.clamp(0, _people);
     // Only pin the dog choice when it differs from the profile.
@@ -2269,6 +2271,31 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               _accommodation,
               (v) => _accommodation = v,
             ),
+            if (_accommodation.usesCabin) ...[
+              _question('Hva slags hytte?'),
+              _choices<CabinType>(
+                [for (final c in CabinType.values) (c, c.label)],
+                _cabinType,
+                (v) => _cabinType = v,
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  switch (_cabinType) {
+                    CabinType.staffed =>
+                      'Betjent: serverer frokost og middag – pakkelisten '
+                          'holder seg til dagens mat og soveutstyr.',
+                    CabinType.selfService =>
+                      'Selvbetjent: proviant kan kjøpes på hytta, betaling '
+                          'skjer per Vipps/kasse.',
+                    CabinType.unstaffed =>
+                      'Ubetjent: ingen mat eller betjening – pakkelisten '
+                          'legger til betaling og all proviant.',
+                  },
+                  style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+                ),
+              ),
+            ],
             if (_accommodation == AccommodationType.cabinBase)
               Padding(
                 padding: const EdgeInsets.only(top: 6),

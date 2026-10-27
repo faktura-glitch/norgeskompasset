@@ -1,4 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// Thin wrapper over Firebase Auth with Norwegian, user-friendly
 /// error messages. The app never swallows auth errors silently —
@@ -37,6 +40,78 @@ class AuthService {
     }
   }
 
+  /// Google sign-in. On the web this uses the Firebase popup flow;
+  /// natively it goes through the google_sign_in plugin (Android's
+  /// Credential Manager picks up the web client id from
+  /// google-services.json). Returns null when the user cancels.
+  /// Windows has no plugin — email sign-in stays the fallback there.
+  Future<User?> signInWithGoogle() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      throw const AuthException(
+        'Google-innlogging støttes ikke på Windows ennå – bruk e-post.',
+      );
+    }
+    try {
+      if (kIsWeb) {
+        final cred = await _auth.signInWithPopup(GoogleAuthProvider());
+        return cred.user;
+      }
+      final account = await GoogleSignIn.instance.authenticate();
+      final cred = await _auth.signInWithCredential(
+        GoogleAuthProvider.credential(idToken: account.authentication.idToken),
+      );
+      return cred.user;
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      throw AuthException('Google-innlogging feilet (${e.code.name}).');
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_messageFor(e), e.code);
+    }
+  }
+
+  /// Sign in with Apple (iOS/Android/macOS) or the Firebase popup
+  /// on the web. Returns null when the user cancels.
+  Future<User?> signInWithApple() async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      throw const AuthException(
+        'Apple-innlogging støttes ikke på Windows – bruk e-post.',
+      );
+    }
+    try {
+      if (kIsWeb) {
+        final cred = await _auth.signInWithPopup(OAuthProvider('apple.com'));
+        return cred.user;
+      }
+      final apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+      final cred = await _auth.signInWithCredential(
+        OAuthProvider('apple.com').credential(
+          idToken: apple.identityToken,
+          accessToken: apple.authorizationCode,
+        ),
+      );
+      return cred.user;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) return null;
+      throw AuthException('Apple-innlogging feilet (${e.code.name}).');
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_messageFor(e), e.code);
+    }
+  }
+
+  /// Whether the signed-in account uses email+password (true) or a
+  /// social provider such as Google/Apple (false) — decides how
+  /// [reauthenticate] must run.
+  bool get usesPasswordProvider {
+    final user = _auth.currentUser;
+    if (user == null) return true;
+    return user.providerData.any((p) => p.providerId == 'password');
+  }
+
   /// Sends a password-reset email. Firebase throws no error for
   /// unknown addresses (by design — it doesn't leak which accounts
   /// exist).
@@ -50,15 +125,45 @@ class AuthService {
 
   Future<void> signOut() => _auth.signOut();
 
-  /// Re-authenticates the signed-in user with their password.
-  /// Required before sensitive actions such as account deletion.
-  Future<void> reauthenticate(String password) async {
+  /// Re-authenticates the signed-in user. Required before sensitive
+  /// actions such as account deletion. Email+password users pass their
+  /// [password]; Google/Apple users go through the provider flow again
+  /// (pass null).
+  Future<void> reauthenticate([String? password]) async {
     final user = _auth.currentUser;
-    final email = user?.email;
-    if (user == null || email == null) {
+    if (user == null) {
       throw const AuthException('Du er ikke innlogget.');
     }
+    final providers = user.providerData.map((p) => p.providerId).toSet();
     try {
+      if (providers.contains(GoogleAuthProvider.PROVIDER_ID)) {
+        final account = await GoogleSignIn.instance.authenticate();
+        await user.reauthenticateWithCredential(
+          GoogleAuthProvider.credential(
+            idToken: account.authentication.idToken,
+          ),
+        );
+        return;
+      }
+      if (providers.contains('apple.com')) {
+        final apple = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+        );
+        await user.reauthenticateWithCredential(
+          OAuthProvider('apple.com').credential(
+            idToken: apple.identityToken,
+            accessToken: apple.authorizationCode,
+          ),
+        );
+        return;
+      }
+      final email = user.email;
+      if (email == null || password == null) {
+        throw const AuthException('Skriv inn passordet for å fortsette.');
+      }
       await user.reauthenticateWithCredential(
         EmailAuthProvider.credential(email: email, password: password),
       );

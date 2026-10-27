@@ -34,6 +34,26 @@ extension AccommodationTypeX on AccommodationType {
     AccommodationType.mixed => 'Telt og hytte',
     AccommodationType.cabinBase => 'Hyttebase',
   };
+
+  /// Whether this accommodation type involves at least one cabin night.
+  bool get usesCabin =>
+      this == AccommodationType.cabin ||
+      this == AccommodationType.mixed ||
+      this == AccommodationType.cabinBase;
+}
+
+/// Type of staffed/self-service/unstaffed cabin (DNT model). Only
+/// meaningful when [AccommodationType.usesCabin]: a staffed cabin serves
+/// meals, an unstaffed one requires carrying all food and paying by
+/// Vipps/cash.
+enum CabinType { staffed, selfService, unstaffed }
+
+extension CabinTypeX on CabinType {
+  String get label => switch (this) {
+    CabinType.staffed => 'Betjent',
+    CabinType.selfService => 'Selvbetjent',
+    CabinType.unstaffed => 'Ubetjent',
+  };
 }
 
 /// Kind of ski trip — decides skins, helmet and whether the
@@ -191,6 +211,11 @@ class Trip {
   DateTime? expectedReturn;
   TripStatus status;
   AccommodationType accommodation;
+
+  /// Only meaningful when [accommodation] involves a cabin
+  /// ([AccommodationType.usesCabin]) — decides food, payment and
+  /// booking gear in the packing list.
+  CabinType cabinType;
   TripSeason season;
   CarryMode carry;
   HikingPace pace;
@@ -260,6 +285,7 @@ class Trip {
     this.expectedReturn,
     this.status = TripStatus.draft,
     this.accommodation = AccommodationType.dayHike,
+    this.cabinType = CabinType.selfService,
     this.season = TripSeason.summer,
     this.carry = CarryMode.backpack,
     this.pace = HikingPace.normal,
@@ -339,6 +365,7 @@ class Trip {
     'expectedReturn': expectedReturn?.toIso8601String(),
     'status': status.name,
     'accommodation': accommodation.name,
+    if (accommodation.usesCabin) 'cabinType': cabinType.name,
     'season': season.name,
     'carry': carry.name,
     'pace': pace.name,
@@ -383,6 +410,8 @@ class Trip {
     accommodation:
         AccommodationType.values.asNameMap()[j['accommodation']] ??
         AccommodationType.dayHike,
+    cabinType:
+        CabinType.values.asNameMap()[j['cabinType']] ?? CabinType.selfService,
     season: TripSeason.values.asNameMap()[j['season']] ?? TripSeason.summer,
     carry: CarryMode.values.asNameMap()[j['carry']] ?? CarryMode.backpack,
     pace: HikingPace.values.asNameMap()[j['pace']] ?? HikingPace.normal,
@@ -468,6 +497,7 @@ class Trip {
     if (expectedReturn != null) 'expRet': expectedReturn!.toIso8601String(),
     'status': status.name,
     'accom': accommodation.name,
+    if (accommodation.usesCabin) 'cabType': cabinType.name,
     'season': season.name,
     'carry': carry.name,
     'pace': pace.name,
@@ -509,6 +539,8 @@ class Trip {
       accommodation:
           AccommodationType.values.asNameMap()[j['accom']] ??
           AccommodationType.dayHike,
+      cabinType:
+          CabinType.values.asNameMap()[j['cabType']] ?? CabinType.selfService,
       season: TripSeason.values.asNameMap()[j['season']] ?? TripSeason.summer,
       carry: CarryMode.values.asNameMap()[j['carry']] ?? CarryMode.backpack,
       pace: HikingPace.values.asNameMap()[j['pace']] ?? HikingPace.normal,

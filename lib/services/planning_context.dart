@@ -199,6 +199,19 @@ abstract final class PlanningContextBuilder {
         'Skredfare er ikke vurdert – sjekk varsom.no og terrenget på ruten.',
       );
     }
+    if (cond.cabin) {
+      checks.add(switch (cond.cabinType) {
+        CabinType.staffed =>
+          'Betjent hytte: sjekk åpningstider og book plass – mange har '
+              'sesongstengt utenfor høysesong.',
+        CabinType.selfService =>
+          'Selvbetjent hytte: sjekk at den er åpen og at proviantbua er '
+              'fylt – betaling skjer per Vipps/kasse.',
+        CabinType.unstaffed =>
+          'Ubetjent hytte: ingen mat eller betjening – ta med alt og betal '
+              'per Vipps eller i hyttas kasse.',
+      });
+    }
 
     return PlanningContext(
       activity: trip.activity,

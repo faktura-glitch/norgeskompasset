@@ -1025,10 +1025,18 @@ class _DeleteAccountCardState extends State<_DeleteAccountCard> {
       // login screen — nothing more to do here.
     } on AuthException catch (e) {
       if (e.code != 'requires-recent-login' || !mounted) rethrow;
-      final password = await _askPassword();
-      if (password != null && mounted) {
+      // Social accounts (Google/Apple) re-authenticate through the
+      // provider flow; only password accounts get the prompt.
+      final auth = AuthService();
+      String? password;
+      var wantsReauth = true;
+      if (auth.usesPasswordProvider) {
+        password = await _askPassword();
+        wantsReauth = password != null;
+      }
+      if (wantsReauth && mounted) {
         try {
-          await AuthService().reauthenticate(password);
+          await auth.reauthenticate(password);
           if (mounted) {
             await context.read<AppState>().deleteAccount(
               keepLocalTrips: keepLocal,

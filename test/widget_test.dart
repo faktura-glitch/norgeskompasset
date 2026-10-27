@@ -496,10 +496,12 @@ void main() {
       double? minTemp,
       AvalancheRisk avalanche = AvalancheRisk.none,
       bool withDog = false,
+      CabinType cabinType = CabinType.selfService,
     }) => TripConditions(
       activity: activity,
       carry: carry,
       accommodation: acc,
+      cabinType: cabinType,
       season: season,
       days: days,
       people: 1,
@@ -559,6 +561,25 @@ void main() {
       expect(cabin.any((i) => i.name.contains('Telt')), isFalse);
       expect(cabin.any((i) => i.name.contains('Lakenpose')), isTrue);
       expect(tent.any((i) => i.name.contains('Lakenpose')), isFalse);
+    });
+
+    test('cabin type changes food and payment gear', () {
+      final staffed = matching(
+        cond(acc: AccommodationType.cabin, cabinType: CabinType.staffed),
+      );
+      final unstaffed = matching(
+        cond(acc: AccommodationType.cabin, cabinType: CabinType.unstaffed),
+      );
+      // Payment only matters without staff to collect it.
+      expect(staffed.any((i) => i.id == 'hutpayment'), isFalse);
+      expect(unstaffed.any((i) => i.id == 'hutpayment'), isTrue);
+      // Staffed cabins serve meals; unstaffed need provisions brought.
+      expect(staffed.any((i) => i.id == 'hutkitchen'), isFalse);
+      expect(staffed.any((i) => i.id == 'hutsnacks'), isTrue);
+      expect(unstaffed.any((i) => i.id == 'hutkitchen'), isTrue);
+      // Bedding is required at every cabin type.
+      expect(unstaffed.any((i) => i.id == 'hutsheet'), isTrue);
+      expect(staffed.any((i) => i.id == 'hutsheet'), isTrue);
     });
 
     test('unknown temperature is not treated as warm', () {

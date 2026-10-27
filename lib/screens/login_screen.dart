@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
@@ -58,6 +59,31 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Shared handler for the social providers — same error surface as
+  /// [_submit]. A cancelled picker leaves the user signed out (null)
+  /// without an error.
+  Future<void> _social(Future<void> Function() fn) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await fn();
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Noe gikk galt – prøv igjen om et øyeblikk.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// The google_sign_in and sign_in_with_apple plugins have no Windows
+  /// implementation — the buttons stay hidden there rather than
+  /// offering a flow that can only fail.
+  bool get _socialSupported =>
+      kIsWeb || defaultTargetPlatform != TargetPlatform.windows;
 
   Future<void> _forgotPassword() async {
     final ctrl = TextEditingController(text: _email.text);
@@ -303,6 +329,52 @@ class _LoginScreenState extends State<LoginScreen> {
                                             : 'Logg inn',
                                       ),
                               ),
+                              if (_socialSupported) ...[
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    const Expanded(child: Divider()),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                      child: Text(
+                                        'eller',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: NkColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(child: Divider()),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed:
+                                      (_busy || widget.configError != null)
+                                      ? null
+                                      : () => _social(
+                                          () => _auth.signInWithGoogle(),
+                                        ),
+                                  icon: const Icon(
+                                    Icons.g_mobiledata,
+                                    size: 26,
+                                  ),
+                                  label: const Text('Fortsett med Google'),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed:
+                                      (_busy || widget.configError != null)
+                                      ? null
+                                      : () => _social(
+                                          () => _auth.signInWithApple(),
+                                        ),
+                                  icon: const Icon(Icons.apple, size: 20),
+                                  label: const Text('Fortsett med Apple'),
+                                ),
+                              ],
                               const SizedBox(height: 8),
                               TextButton(
                                 onPressed: _busy

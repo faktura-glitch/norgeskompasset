@@ -67,6 +67,7 @@ class PackingEngine {
       activity: trip.activity,
       carry: trip.carry,
       accommodation: trip.accommodation,
+      cabinType: trip.cabinType,
       season: trip.season,
       days: trip.hikingDays,
       people: trip.participants.clamp(1, 20),

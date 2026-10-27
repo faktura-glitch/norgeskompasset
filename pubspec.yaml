@@ -56,6 +56,8 @@ dependencies:
   firebase_crashlytics: ^5.0.5
   cached_network_image: ^4.0.4
   flutter_compass: ^0.8.1
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.2.0
 
 dev_dependencies:
   flutter_test:
