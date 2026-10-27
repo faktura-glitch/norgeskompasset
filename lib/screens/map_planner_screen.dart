@@ -1526,7 +1526,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           children: [
             for (final label in [
               trip.activity.label,
-              trip.accommodation.label,
+              trip.accommodationLabel,
               trip.season.label,
               trip.startDate == null
                   ? 'Dato ikke satt'
@@ -2082,6 +2082,8 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
   late TripActivity _activity = widget.trip.activity;
   late AccommodationType _accommodation = widget.trip.accommodation;
   late CabinType _cabinType = widget.trip.cabinType;
+  late List<CabinType> _nightCabins = List.of(widget.trip.nightCabins);
+  late bool _variedCabins = widget.trip.nightCabins.isNotEmpty;
   late int _people = widget.trip.participants;
   late int _children = widget.trip.children;
   late CarryMode _carry = widget.trip.carry;
@@ -2103,6 +2105,52 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
       : _start != null
       ? TurrutebaseService.seasonForDate(_start!)
       : widget.trip.season;
+
+  int get _nights => _days - 1;
+
+  /// Hut-to-hut with at least two nights can have a type per night.
+  bool get _canVaryCabins =>
+      _accommodation == AccommodationType.cabin && _nights >= 2;
+
+  CabinType _nightCabin(int i) =>
+      i < _nightCabins.length ? _nightCabins[i] : _cabinType;
+
+  /// Names of the overnight points, when one is placed per night.
+  List<String> get _overnightNames {
+    final names = [
+      for (final w in widget.trip.route?.waypoints ?? const <Waypoint>[])
+        if (w.type == WaypointType.overnight)
+          isGenericWaypointName(w.name) ? '' : w.name.trim(),
+    ];
+    return names.length == _nights ? names : const [];
+  }
+
+  Widget _nightRow(int i) {
+    final names = _overnightNames;
+    final name = i < names.length && names[i].isNotEmpty
+        ? ' – ${names[i]}'
+        : '';
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Natt ${i + 1}$name',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          _choices<CabinType>(
+            [for (final c in CabinType.values) (c, c.label)],
+            _nightCabin(i),
+            (v) => _nightCabins = [
+              for (var n = 0; n < _nights; n++) n == i ? v : _nightCabin(n),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _pickStart() async {
     final picked = await showDatePicker(
@@ -2166,6 +2214,9 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
     }
     t.accommodation = _accommodation;
     t.cabinType = _cabinType;
+    t.nightCabins = _canVaryCabins && _variedCabins
+        ? [for (var n = 0; n < _nights; n++) _nightCabin(n)]
+        : const [];
     t.participants = _people;
     t.children = _children.clamp(0, _people);
     // Only pin the dog choice when it differs from the profile.
@@ -2273,28 +2324,55 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
             ),
             if (_accommodation.usesCabin) ...[
               _question('Hva slags hytte?'),
-              _choices<CabinType>(
-                [for (final c in CabinType.values) (c, c.label)],
-                _cabinType,
-                (v) => _cabinType = v,
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  switch (_cabinType) {
-                    CabinType.staffed =>
-                      'Betjent: serverer frokost og middag – pakkelisten '
-                          'holder seg til dagens mat og soveutstyr.',
-                    CabinType.selfService =>
-                      'Selvbetjent: proviant kan kjøpes på hytta, betaling '
-                          'skjer per Vipps/kasse.',
-                    CabinType.unstaffed =>
-                      'Ubetjent: ingen mat eller betjening – pakkelisten '
-                          'legger til betaling og all proviant.',
-                  },
-                  style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+              if (_canVaryCabins)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Ulik hyttetype fra natt til natt'),
+                  value: _variedCabins,
+                  onChanged: (v) => setState(() => _variedCabins = v),
                 ),
-              ),
+              if (_canVaryCabins && _variedCabins) ...[
+                for (var i = 0; i < _nights; i++) _nightRow(i),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Pakkelisten og matplanen følger hver natt: mat og '
+                    'betaling der hytta krever det, middag og frokost '
+                    'servert på betjent hytte.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: NkColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                _choices<CabinType>(
+                  [for (final c in CabinType.values) (c, c.label)],
+                  _cabinType,
+                  (v) => _cabinType = v,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    switch (_cabinType) {
+                      CabinType.staffed =>
+                        'Betjent: serverer frokost og middag – pakkelisten '
+                            'holder seg til dagens mat og soveutstyr.',
+                      CabinType.selfService =>
+                        'Selvbetjent: proviant kan kjøpes på hytta, betaling '
+                            'skjer per Vipps/kasse.',
+                      CabinType.unstaffed =>
+                        'Ubetjent: ingen mat eller betjening – pakkelisten '
+                            'legger til betaling og all proviant.',
+                    },
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: NkColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ],
             if (_accommodation == AccommodationType.cabinBase)
               Padding(

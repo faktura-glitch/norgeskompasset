@@ -26,6 +26,9 @@ class TripConditions {
 
   /// Staffed/self-service/unstaffed — only read by cabin rules.
   final CabinType cabinType;
+
+  /// Cabin type per night (empty when unknown) – see [Trip.cabinNights].
+  final List<CabinType> cabinNights;
   final TripSeason season;
   final int days;
   final int people;
@@ -59,6 +62,7 @@ class TripConditions {
     required this.carry,
     required this.accommodation,
     this.cabinType = CabinType.selfService,
+    this.cabinNights = const [],
     required this.season,
     required this.days,
     required this.people,
@@ -88,6 +92,31 @@ class TripConditions {
   bool get cabin =>
       accommodation == AccommodationType.cabin || mixed || cabinBase;
   bool get multiDay => days > 1;
+
+  /// Cabin types the group sleeps in.
+  Set<CabinType> get cabinTypesUsed =>
+      cabinNights.isEmpty ? {cabinType} : cabinNights.toSet();
+
+  /// Hut-to-hut trip where the cabins differ from night to night.
+  bool get variedCabins => cabinTypesUsed.length > 1;
+
+  /// «natt 1 og 2» – the nights spent in a cabin of one of [types].
+  String nightsIn(Set<CabinType> types) {
+    final n = [
+      for (var i = 0; i < cabinNights.length; i++)
+        if (types.contains(cabinNights[i])) '${i + 1}',
+    ];
+    if (n.isEmpty) return '';
+    final list = n.length == 1
+        ? n.first
+        : '${n.sublist(0, n.length - 1).join(', ')} og ${n.last}';
+    return 'natt $list';
+  }
+
+  /// «natt 1 og 2 selvbetjent, natt 3 betjent».
+  String get cabinSummary => [
+    for (final t in cabinTypesUsed) '${nightsIn({t})} ${t.label.toLowerCase()}',
+  ].join(', ');
 
   /// Snow or a known forecast at/below freezing — real winter camping.
   /// Shoulder-season cold alone (spring/autumn) is not enough.
@@ -246,7 +275,7 @@ class GearItem {
         excludeAccommodation.contains(c.accommodation)) {
       return false;
     }
-    if (cabinTypes.isNotEmpty && !cabinTypes.contains(c.cabinType)) {
+    if (cabinTypes.isNotEmpty && !c.cabinTypesUsed.any(cabinTypes.contains)) {
       return false;
     }
     if (seasons.isNotEmpty && !seasons.contains(c.season)) return false;

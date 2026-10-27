@@ -200,17 +200,28 @@ abstract final class PlanningContextBuilder {
       );
     }
     if (cond.cabin) {
-      checks.add(switch (cond.cabinType) {
-        CabinType.staffed =>
-          'Betjent hytte: sjekk åpningstider og book plass – mange har '
-              'sesongstengt utenfor høysesong.',
-        CabinType.selfService =>
-          'Selvbetjent hytte: sjekk at den er åpen og at proviantbua er '
-              'fylt – betaling skjer per Vipps/kasse.',
-        CabinType.unstaffed =>
-          'Ubetjent hytte: ingen mat eller betjening – ta med alt og betal '
-              'per Vipps eller i hyttas kasse.',
-      });
+      if (cond.variedCabins) {
+        checks.add(
+          cond.cabinTypesUsed.contains(CabinType.staffed)
+              ? 'Ulike hytter (${cond.cabinSummary}): book plass på den '
+                    'betjente, sjekk åpningstider, og ta med mat og betaling '
+                    'til de andre nettene.'
+              : 'Ulike hytter (${cond.cabinSummary}): sjekk at hyttene er '
+                    'åpne, ta med mat og betal per Vipps eller i hyttas kasse.',
+        );
+      } else {
+        checks.add(switch (cond.cabinType) {
+          CabinType.staffed =>
+            'Betjent hytte: sjekk åpningstider og book plass – mange har '
+                'sesongstengt utenfor høysesong.',
+          CabinType.selfService =>
+            'Selvbetjent hytte: sjekk at den er åpen og at proviantbua er '
+                'fylt – betaling skjer per Vipps/kasse.',
+          CabinType.unstaffed =>
+            'Ubetjent hytte: ingen mat eller betjening – ta med alt og betal '
+                'per Vipps eller i hyttas kasse.',
+        });
+      }
     }
 
     return PlanningContext(

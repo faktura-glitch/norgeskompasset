@@ -144,8 +144,29 @@ class MealPlanner {
       );
     }
 
+    // A staffed cabin serves dinner and the next morning's breakfast.
+    final nights = trip.cabinNights;
+    bool staffedNight(int n) =>
+        n >= 1 && n <= nights.length && nights[n - 1] == CabinType.staffed;
+    var servedKcal = 0.0;
+    for (final m in meals) {
+      final served = switch (m.type) {
+        MealType.dinner => staffedNight(m.day),
+        MealType.breakfast => staffedNight(m.day - 1),
+        _ => false,
+      };
+      if (!served) continue;
+      servedKcal += m.kcalPerPerson;
+      m
+        ..name = 'Servert på betjent hytte'
+        ..gramsPerPerson = 0
+        ..kcalPer100g = 0
+        ..served = true;
+    }
+
     if (targetKcalPerDay != null && meals.isNotEmpty) {
-      final planned = meals.fold(0.0, (s, m) => s + m.kcalPerPerson) / days;
+      final planned =
+          (meals.fold(0.0, (s, m) => s + m.kcalPerPerson) + servedKcal) / days;
       if (planned > 0 && planned < targetKcalPerDay * 0.85) {
         final factor = (targetKcalPerDay / planned).clamp(1.0, 1.6);
         for (final m in meals) {

@@ -216,6 +216,37 @@ class Trip {
   /// ([AccommodationType.usesCabin]) — decides food, payment and
   /// booking gear in the packing list.
   CabinType cabinType;
+
+  /// Cabin type per night on a hut-to-hut trip (index 0 = night 1).
+  /// Empty means every night uses [cabinType].
+  List<CabinType> nightCabins;
+
+  /// Cabin type for each night in a cabin, or empty when the nights
+  /// are not known to be cabin nights (day trip, tent, mixed).
+  List<CabinType> get cabinNights {
+    if (accommodation != AccommodationType.cabin &&
+        accommodation != AccommodationType.cabinBase) {
+      return const [];
+    }
+    final perNight = accommodation == AccommodationType.cabin;
+    return [
+      for (var i = 0; i < hikingDays - 1; i++)
+        perNight && i < nightCabins.length ? nightCabins[i] : cabinType,
+    ];
+  }
+
+  /// «Hytte: 2 selvbetjent, 1 betjent» when the nights differ, else
+  /// the plain accommodation label.
+  String get accommodationLabel {
+    final nights = cabinNights;
+    final types = nights.toSet();
+    if (types.length < 2) return accommodation.label;
+    final counts = [
+      for (final t in types) (nights.where((n) => n == t).length, t),
+    ]..sort((a, b) => b.$1.compareTo(a.$1));
+    return 'Hytte: ${[for (final (n, t) in counts) '$n ${t.label.toLowerCase()}'].join(', ')}';
+  }
+
   TripSeason season;
   CarryMode carry;
   HikingPace pace;
@@ -286,6 +317,7 @@ class Trip {
     this.status = TripStatus.draft,
     this.accommodation = AccommodationType.dayHike,
     this.cabinType = CabinType.selfService,
+    this.nightCabins = const [],
     this.season = TripSeason.summer,
     this.carry = CarryMode.backpack,
     this.pace = HikingPace.normal,
@@ -362,6 +394,8 @@ class Trip {
     'status': status.name,
     'accommodation': accommodation.name,
     if (accommodation.usesCabin) 'cabinType': cabinType.name,
+    if (accommodation == AccommodationType.cabin && nightCabins.isNotEmpty)
+      'nightCabins': [for (final c in nightCabins) c.name],
     'season': season.name,
     'carry': carry.name,
     'pace': pace.name,
@@ -408,6 +442,7 @@ class Trip {
         AccommodationType.dayHike,
     cabinType:
         CabinType.values.asNameMap()[j['cabinType']] ?? CabinType.selfService,
+    nightCabins: _cabinList(j['nightCabins']),
     season: TripSeason.values.asNameMap()[j['season']] ?? TripSeason.summer,
     carry: CarryMode.values.asNameMap()[j['carry']] ?? CarryMode.backpack,
     pace: HikingPace.values.asNameMap()[j['pace']] ?? HikingPace.normal,
@@ -470,6 +505,11 @@ class Trip {
     shareCode: j['shareCode'] as String?,
   );
 
+  static List<CabinType> _cabinList(Object? raw) => [
+    for (final e in raw as List? ?? const [])
+      CabinType.values.asNameMap()[e] ?? CabinType.selfService,
+  ];
+
   String encode() => jsonEncode(toJson());
   factory Trip.decode(String s) => Trip.fromJson(jsonDecode(s));
 
@@ -494,6 +534,8 @@ class Trip {
     'status': status.name,
     'accom': accommodation.name,
     if (accommodation.usesCabin) 'cabType': cabinType.name,
+    if (accommodation == AccommodationType.cabin && nightCabins.isNotEmpty)
+      'cabNights': [for (final c in nightCabins) c.name],
     'season': season.name,
     'carry': carry.name,
     'pace': pace.name,
@@ -537,6 +579,7 @@ class Trip {
           AccommodationType.dayHike,
       cabinType:
           CabinType.values.asNameMap()[j['cabType']] ?? CabinType.selfService,
+      nightCabins: _cabinList(j['cabNights']),
       season: TripSeason.values.asNameMap()[j['season']] ?? TripSeason.summer,
       carry: CarryMode.values.asNameMap()[j['carry']] ?? CarryMode.backpack,
       pace: HikingPace.values.asNameMap()[j['pace']] ?? HikingPace.normal,

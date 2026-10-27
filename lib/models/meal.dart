@@ -22,6 +22,9 @@ class PlannedMeal {
   bool userEdited;
   String? sourceMenuId;
 
+  /// Served at a staffed cabin – nothing to carry or buy.
+  bool served;
+
   PlannedMeal({
     required this.id,
     required this.day,
@@ -32,6 +35,7 @@ class PlannedMeal {
     this.notes,
     this.userEdited = false,
     this.sourceMenuId,
+    this.served = false,
   });
 
   /// Estimated calories per person for this meal (0 when unknown).
@@ -47,6 +51,7 @@ class PlannedMeal {
     'notes': notes,
     'userEdited': userEdited,
     'sourceMenuId': sourceMenuId,
+    if (served) 'served': true,
   };
 
   factory PlannedMeal.fromJson(Map<String, dynamic> j) => PlannedMeal(
@@ -59,6 +64,7 @@ class PlannedMeal {
     notes: j['notes'] as String?,
     userEdited: j['userEdited'] as bool? ?? false,
     sourceMenuId: j['sourceMenuId'] as String?,
+    served: j['served'] as bool? ?? false,
   );
 }
 
@@ -100,7 +106,7 @@ class MealPlan {
 
   List<String> get shoppingList {
     final list = meals
-        .where((m) => m.name.trim().isNotEmpty)
+        .where((m) => !m.served && m.name.trim().isNotEmpty)
         .map(
           (m) =>
               '${m.name} — dag ${m.day} (${m.type.label.toLowerCase()}, ${(m.gramsPerPerson * people).round()} g'

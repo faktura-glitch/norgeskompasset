@@ -939,14 +939,16 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     0,
     priority: PackingPriority.required,
     accommodation: {AccommodationType.cabin},
-    reasonFn: (c) => switch (c.cabinType) {
-      CabinType.staffed =>
-        'Booket plass på betjent hytte – bekreft før avreise',
-      CabinType.selfService =>
-        'DNT-nøkkel eller forhåndsbooking av selvbetjent hytte',
-      CabinType.unstaffed =>
-        'DNT-nøkkel åpner ubetjente hytter – sjekk medlemskapet',
-    },
+    reasonFn: (c) => c.variedCabins
+        ? 'Book plass og ta med DNT-nøkkel – hyttene er ulike (${c.cabinSummary})'
+        : switch (c.cabinType) {
+            CabinType.staffed =>
+              'Booket plass på betjent hytte – bekreft før avreise',
+            CabinType.selfService =>
+              'DNT-nøkkel eller forhåndsbooking av selvbetjent hytte',
+            CabinType.unstaffed =>
+              'DNT-nøkkel åpner ubetjente hytter – sjekk medlemskapet',
+          },
   ),
   GearItem(
     'hutpayment',
@@ -957,7 +959,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     consumable: true,
     accommodation: {AccommodationType.cabin},
     cabinTypes: {CabinType.selfService, CabinType.unstaffed},
-    reasonFn: (c) => c.cabinType == CabinType.unstaffed
+    reasonFn: (c) => c.variedCabins
+        ? 'Betal per Vipps eller kontanter for ${c.nightsIn(const {CabinType.selfService, CabinType.unstaffed})}'
+        : c.cabinType == CabinType.unstaffed
         ? 'Ubetjent hytte: betal i hyttas kasse eller per Vipps før avreise'
         : 'Selvbetjent hytte: betal selvbetjent per Vipps eller kontanter',
   ),
@@ -978,7 +982,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     accommodation: {AccommodationType.cabin},
     cabinTypes: {CabinType.selfService, CabinType.unstaffed},
     minDays: 2,
-    reasonFn: (c) => c.cabinType == CabinType.unstaffed
+    reasonFn: (c) => c.cabinTypesUsed.contains(CabinType.staffed)
+        ? 'Mat for ${c.nightsIn(const {CabinType.selfService, CabinType.unstaffed})} – den betjente hytta serverer frokost og middag'
+        : c.cabinTypesUsed.contains(CabinType.unstaffed)
         ? 'Ubetjent hytte har ingen mat – alt må bæres med'
         : 'Proviant kan kjøpes på selvbetjente hytter, men utvalget er begrenset',
   ),
@@ -989,6 +995,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     200,
     accommodation: {AccommodationType.cabin},
     cabinTypes: {CabinType.staffed},
+    extra: (c) => !c.variedCabins,
     minDays: 2,
     reason: 'Betjent hytte serverer frokost og middag – du trenger bare matpakke og snacks for dagene',
   ),

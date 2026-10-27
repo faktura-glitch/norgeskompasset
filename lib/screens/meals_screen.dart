@@ -696,9 +696,11 @@ class _MealRow extends StatelessWidget {
                   style: const TextStyle(fontSize: 13),
                 ),
                 Text(
-                  '${meal.gramsPerPerson.toStringAsFixed(0)} g/pers'
-                  '${people > 1 ? ' ×$people = ${(meal.gramsPerPerson * people).toStringAsFixed(0)} g' : ''}'
-                  '${meal.kcalPerPerson > 0 ? ' · ${meal.kcalPerPerson.round()} kcal/pers' : ''}',
+                  meal.served
+                      ? 'Servert på hytta – ingenting å bære'
+                      : '${meal.gramsPerPerson.toStringAsFixed(0)} g/pers'
+                            '${people > 1 ? ' ×$people = ${(meal.gramsPerPerson * people).toStringAsFixed(0)} g' : ''}'
+                            '${meal.kcalPerPerson > 0 ? ' · ${meal.kcalPerPerson.round()} kcal/pers' : ''}',
                   style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
                 ),
               ],
