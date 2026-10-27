@@ -11,6 +11,7 @@ import '../models/trip.dart';
 import '../services/gear_catalog.dart';
 import '../services/planning_context.dart';
 import '../services/packing_engine.dart';
+import '../services/smart_load.dart';
 import '../services/trip_analysis.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
@@ -70,6 +71,72 @@ Future<void> showRemovedItemsSheet(BuildContext context, Trip trip) async {
           ],
         ),
       ),
+    ),
+  );
+}
+
+/// SmartLoad: gear that can safely stay home. Nothing is removed
+/// until the user taps, and required/safety gear is never suggested.
+Future<void> showSmartLoadSheet(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  final small = TextStyle(fontSize: 12, color: NkColors.textSecondary);
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final tips = smartLoadSuggestions(trip.packingList);
+        final total = tips.fold(0.0, (s, t) => s + t.savedGrams);
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              const Text(
+                'Spar vekt',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                tips.isEmpty
+                    ? 'Fant ingenting som trygt kan bli hjemme.'
+                    : 'Du kan spare opptil ${fmtWeight(total)}. Du bestemmer '
+                          'selv – ingenting fjernes før du trykker.',
+                style: small,
+              ),
+              const SizedBox(height: 8),
+              for (final t in tips)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(t.title),
+                  subtitle: Text(t.detail),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      for (final i in t.remove) {
+                        trip.packingList.removeWhere((x) => x.id == i.id);
+                        if (!i.userAdded) trip.deletedGearIds.add(i.id);
+                      }
+                      await state.saveTrip(trip);
+                      if (ctx.mounted) setS(() {});
+                    },
+                    child: Text(
+                      'Fjern\n−${fmtWeight(t.savedGrams)}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'Nødvendige ting, sikkerhetsutstyr og navigasjon foreslås '
+                'aldri fjernet. Appens egne forslag kan legges tilbake under '
+                '«Fjernede gjenstander».',
+                style: small,
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }
@@ -333,6 +400,7 @@ class _PackingScreenState extends State<PackingScreen> {
                   child: Text('Generer liste på nytt'),
                 ),
                 PopupMenuItem(value: 'optimize', child: Text('Optimaliser')),
+                PopupMenuItem(value: 'smartload', child: Text('Spar vekt…')),
                 PopupMenuItem(
                   value: 'removed',
                   child: Text('Fjernede gjenstander…'),
@@ -390,6 +458,8 @@ class _PackingScreenState extends State<PackingScreen> {
       await showRemovedItemsSheet(context, trip);
     } else if (v == 'owned') {
       await showOwnedGearSheet(context, trip);
+    } else if (v == 'smartload') {
+      await showSmartLoadSheet(context, trip);
     } else if (v == 'optimize') {
       final engine = PackingEngine();
       final notes = engine.describeOptimization(trip);
@@ -978,6 +1048,8 @@ class _Header extends StatelessWidget {
     final overLimit = limitGrams > 0 && packWeight > limitGrams;
     final missing = trip.missingRequiredCount;
     final missingSafety = items.missingSafetyCount;
+    final smart = smartLoadSuggestions(items);
+    final saveable = smart.fold(0.0, (s, x) => s + x.savedGrams);
     final (statusColor, statusText) = switch (items.readiness) {
       PackReadiness.ready => (
         NkColors.forestGreen,
@@ -1125,6 +1197,22 @@ class _Header extends StatelessWidget {
                                 packWeight + worn,
                                 bold: true,
                               ),
+                              if (smart.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: () =>
+                                        showSmartLoadSheet(context, trip),
+                                    icon: const Icon(
+                                      Icons.tips_and_updates_outlined,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      'Spar opptil ${fmtWeight(saveable)} – se ${smart.length} forslag',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ),
                               if (limitGrams <= 0)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
@@ -1729,6 +1817,7 @@ class _PlanningBasis extends StatelessWidget {
     final fetched = trip.weather.values
         .map((s) => s.retrievedAt)
         .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    final change = context.watch<AppState>().packingChanges[trip.id];
     final facts = <String>[
       '${ctx.activity.label} · ${ctx.carry.label}',
       if (ctx.distanceKm != null)
@@ -1789,15 +1878,11 @@ class _PlanningBasis extends StatelessWidget {
                               nkToast(context, state.lastError!);
                               return;
                             }
-                            final min = PackingEngine()
-                                .conditionsFor(trip, state.profile)
-                                .minTemp;
                             nkToast(
                               context,
-                              min == null
-                                  ? 'Værvarsel hentet – pakkelisten er oppdatert.'
-                                  : 'Værvarsel hentet (min ${min.round()} °C) – '
-                                        'pakkelisten er oppdatert.',
+                              state.packingChanges[trip.id] == null
+                                  ? 'Værvarsel hentet – ingen endringer i pakkelisten.'
+                                  : 'Værvarsel hentet – se hva som er endret i pakkelisten.',
                             );
                           },
                     icon: const Icon(Icons.cloud_download_outlined, size: 16),
@@ -1824,6 +1909,56 @@ class _PlanningBasis extends StatelessWidget {
                 ),
               ],
             ),
+            if (change != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 4, bottom: 2),
+                padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+                decoration: BoxDecoration(
+                  color: NkColors.primaryBlue.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Endret etter nytt værvarsel',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          for (final n in change.notes)
+                            Text('• $n', style: const TextStyle(fontSize: 11)),
+                          if (change.added.isNotEmpty)
+                            Text(
+                              'Lagt til: ${change.added.join(', ')}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          if (change.removed.isNotEmpty)
+                            Text(
+                              'Ikke lenger foreslått: ${change.removed.join(', ')}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Lukk',
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 16,
+                      icon: const Icon(Icons.close),
+                      onPressed: () => context
+                          .read<AppState>()
+                          .dismissPackingChange(trip.id),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 4),
             Text(
               facts.join('  ·  '),

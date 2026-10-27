@@ -29,6 +29,7 @@ import '../services/elevation_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/gear_catalog.dart';
 import '../services/meal_planner.dart';
+import '../services/packing_change.dart';
 import '../services/packing_engine.dart';
 import '../services/recommendation_engine.dart';
 import '../services/routing_service.dart';
@@ -63,6 +64,13 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   UserProfile profile = UserProfile();
   String? lastError;
   bool localOnly = false;
+
+  /// Latest forecast-driven packing change per trip id, until dismissed.
+  final packingChanges = <String, PackingChange>{};
+
+  void dismissPackingChange(String tripId) {
+    if (packingChanges.remove(tripId) != null) notifyListeners();
+  }
 
   Future<void> useLocalMode(bool value) async {
     if (value) await syncWithCloud(null);
@@ -1039,6 +1047,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> fetchWeather(Trip trip) async {
     if (trip.stages.isEmpty && trip.route?.hasRoute != true) return;
     await _run('Henter værprognose…', () async {
+      final basisBefore = PackingChange.basisOf(
+        packingEngine.conditionsFor(trip, profile),
+      );
+      final listBefore = [...trip.packingList];
       final targets = <({String key, double lat, double lon, double? ele})>[];
       if (trip.stages.isNotEmpty) {
         for (final s in trip.stages) {
@@ -1164,6 +1176,21 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       // The packing rules read the forecast (min temp, rain, wind,
       // freezing nights) — regenerate so the list reflects it.
       await _refreshPlan(trip);
+      if (listBefore.isNotEmpty) {
+        final change = PackingChange.diff(
+          before: basisBefore,
+          after: PackingChange.basisOf(
+            packingEngine.conditionsFor(trip, profile),
+          ),
+          oldList: listBefore,
+          newList: trip.packingList,
+        );
+        if (change.isEmpty) {
+          packingChanges.remove(trip.id);
+        } else {
+          packingChanges[trip.id] = change;
+        }
+      }
       recommendationEngine.refresh(trip, profile: profile);
       await repo.saveTrip(trip);
     });
