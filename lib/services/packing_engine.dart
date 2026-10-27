@@ -52,7 +52,8 @@ class PackingEngine {
     // possible terrain; unknown on a winter/ski trip is treated as
     // uncertain rather than "no risk".
     final avalanche =
-        trip.avalancheWarnings.isNotEmpty || trip.avalancheTerrain == true
+        trip.avalancheWarnings.any((w) => w.dangerLevel > 0) ||
+            trip.avalancheTerrain == true
         ? AvalancheRisk.yes
         : trip.avalancheTerrain == false
         ? AvalancheRisk.none

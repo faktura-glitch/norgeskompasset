@@ -54,6 +54,9 @@ class VarsomService {
     if (body.isEmpty || body == 'null') return const [];
     final parsed = jsonDecode(body);
     if (parsed is! List) return const [];
+    // Outside the season, and for regions without forecasting, Varsom
+    // still returns rows with DangerLevel 0 («Ikke vurdert»). Those are
+    // not warnings and must not trigger avalanche gear.
     return parsed
         .whereType<Map>()
         .map(
@@ -63,6 +66,7 @@ class VarsomService {
             lon,
           ),
         )
+        .where((w) => w.dangerLevel > 0)
         .toList();
   }
 }

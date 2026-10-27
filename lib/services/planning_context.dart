@@ -116,7 +116,7 @@ abstract final class PlanningContextBuilder {
     // ── Avalanche basis ────────────────────────────────────
     AvalancheBasis basis;
     int? maxDanger;
-    if (trip.avalancheWarnings.isNotEmpty) {
+    if (trip.avalancheWarnings.any((w) => w.dangerLevel > 0)) {
       basis = AvalancheBasis.warning;
       for (final w in trip.avalancheWarnings) {
         if (maxDanger == null || w.dangerLevel > maxDanger) {

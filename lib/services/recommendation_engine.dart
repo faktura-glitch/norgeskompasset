@@ -233,7 +233,7 @@ class RecommendationEngine {
     // One recommendation per region at its highest warned level.
     final avByRegion = <String, int>{};
     final avText = <String, String>{};
-    for (final w in trip.avalancheWarnings) {
+    for (final w in trip.avalancheWarnings.where((w) => w.dangerLevel > 0)) {
       final prev = avByRegion[w.regionName] ?? 0;
       if (w.dangerLevel > prev) avByRegion[w.regionName] = w.dangerLevel;
       if (w.mainText.isNotEmpty && (avText[w.regionName]?.isEmpty ?? true)) {

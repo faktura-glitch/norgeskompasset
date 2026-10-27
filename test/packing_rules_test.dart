@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:norgeskompasset/models/avalanche.dart';
 import 'package:norgeskompasset/models/packing.dart';
 import 'package:norgeskompasset/models/trip.dart';
 import 'package:norgeskompasset/services/packing_engine.dart';
@@ -56,6 +57,22 @@ void main() {
     expect(beacon(), PackingPriority.required);
     trip.avalancheTerrain = false;
     expect(_ids(trip), isNot(contains('beacon')));
+  });
+
+  test('«Ikke vurdert» fra Varsom gir ikke skredutstyr på høsttur', () {
+    final trip = _tent(TripSeason.autumn, people: 3)..children = 2;
+    AvalancheWarning w(int level) => AvalancheWarning(
+      regId: 'r$level',
+      regionName: 'Hønefoss',
+      dangerLevel: level,
+      lat: 60.17,
+      lon: 10.26,
+    );
+    trip.avalancheWarnings = [w(0)];
+    expect(_ids(trip), isNot(contains('beacon')));
+    expect(_ids(trip), isNot(contains('shovel')));
+    trip.avalancheWarnings = [w(0), w(2)];
+    expect(_ids(trip), contains('beacon'));
   });
 
   test('mixed tent + cabin trip gets both kits', () {
