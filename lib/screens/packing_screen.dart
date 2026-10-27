@@ -12,6 +12,7 @@ import '../services/gear_catalog.dart';
 import '../services/planning_context.dart';
 import '../services/packing_engine.dart';
 import '../services/smart_load.dart';
+import '../services/what_if.dart';
 import '../services/trip_analysis.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
@@ -131,6 +132,131 @@ Future<void> showSmartLoadSheet(BuildContext context, Trip trip) async {
                 'Nødvendige ting, sikkerhetsutstyr og navigasjon foreslås '
                 'aldri fjernet. Appens egne forslag kan legges tilbake under '
                 '«Fjernede gjenstander».',
+                style: small,
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Color _needColor(NeedState s) => switch (s) {
+  NeedState.packed => NkColors.forestGreen,
+  NeedState.listed => NkColors.warning,
+  NeedState.missing => NkColors.dangerRed,
+};
+
+IconData _needIcon(NeedState s) => switch (s) {
+  NeedState.packed => Icons.check_circle,
+  NeedState.listed => Icons.radio_button_unchecked,
+  NeedState.missing => Icons.error_outline,
+};
+
+/// «Hva hvis?» — checks the pack against situations that often go
+/// wrong. Missing needs can be added with one tap.
+Future<void> showWhatIfSheet(BuildContext context, Trip trip) async {
+  final state = context.read<AppState>();
+  final small = TextStyle(fontSize: 12, color: NkColors.textSecondary);
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final conditions = PackingEngine().conditionsFor(trip, state.profile);
+        final scenarios = whatIfChecks(trip, conditions);
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              const Text(
+                'Hva hvis?',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Sjekker om sekken dekker det som oftest går galt på tur. '
+                'Grønt er pakket, gult står på listen men er ikke pakket, '
+                'og rødt mangler.',
+                style: small,
+              ),
+              const SizedBox(height: 10),
+              for (final w in scenarios)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: NkCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _needIcon(w.state),
+                              size: 18,
+                              color: _needColor(w.state),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                w.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(w.advice, style: small),
+                        const SizedBox(height: 6),
+                        for (final c in w.checks)
+                          Row(
+                            children: [
+                              Icon(
+                                _needIcon(c.state),
+                                size: 14,
+                                color: _needColor(c.state),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  c.state == NeedState.missing
+                                      ? '${c.need.label}: mangler'
+                                      : '${c.need.label}: '
+                                            '${c.items.map((i) => i.name).join(', ')}'
+                                            '${c.state == NeedState.listed ? ' (ikke pakket)' : ''}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              if (c.state == NeedState.missing)
+                                TextButton(
+                                  onPressed: () async {
+                                    final g = gearCatalog
+                                        .where((g) => g.id == c.need.suggestId)
+                                        .firstOrNull;
+                                    if (g == null) return;
+                                    trip.deletedGearIds.remove(g.id);
+                                    trip.packingList.add(
+                                      g.toItem(conditions)..userAdded = true,
+                                    );
+                                    await state.saveTrip(trip);
+                                    if (ctx.mounted) setS(() {});
+                                  },
+                                  child: const Text('Legg til'),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              Text(
+                'Dette er en sjekkliste, ikke en garanti. Vurder alltid vær, '
+                'terreng og egen erfaring.',
                 style: small,
               ),
             ],
@@ -401,6 +527,7 @@ class _PackingScreenState extends State<PackingScreen> {
                 ),
                 PopupMenuItem(value: 'optimize', child: Text('Optimaliser')),
                 PopupMenuItem(value: 'smartload', child: Text('Spar vekt…')),
+                PopupMenuItem(value: 'whatif', child: Text('Hva hvis?…')),
                 PopupMenuItem(
                   value: 'removed',
                   child: Text('Fjernede gjenstander…'),
@@ -460,6 +587,8 @@ class _PackingScreenState extends State<PackingScreen> {
       await showOwnedGearSheet(context, trip);
     } else if (v == 'smartload') {
       await showSmartLoadSheet(context, trip);
+    } else if (v == 'whatif') {
+      await showWhatIfSheet(context, trip);
     } else if (v == 'optimize') {
       final engine = PackingEngine();
       final notes = engine.describeOptimization(trip);
@@ -1147,6 +1276,37 @@ class _Header extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ),
+                          Builder(
+                            builder: (context) {
+                              final gaps = whatIfChecks(
+                                trip,
+                                PackingEngine().conditionsFor(
+                                  trip,
+                                  context.read<AppState>().profile,
+                                ),
+                              ).where((w) => w.state == NeedState.missing);
+                              return InkWell(
+                                onTap: () => showWhatIfSheet(context, trip),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 3,
+                                  ),
+                                  child: Text(
+                                    gaps.isNotEmpty
+                                        ? 'Hva hvis? ${fmtCount(gaps.length, 'situasjon', 'situasjoner')} er ikke dekket ›'
+                                        : 'Hva hvis? Sjekk sekken mot det uventede ›',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: gaps.isNotEmpty
+                                          ? NkColors.dangerRed
+                                          : NkColors.primaryBlue,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           if (totalGrams - packedGrams > 0)
                             Text(
