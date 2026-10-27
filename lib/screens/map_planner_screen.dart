@@ -22,6 +22,7 @@ import '../services/map_display_settings.dart';
 import '../services/turrutebase_service.dart';
 import '../services/weather_service.dart' show ServiceException;
 import '../services/tile_cache.dart';
+import '../services/trip_assessment.dart';
 import '../services/weather_service.dart';
 import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
@@ -2816,6 +2817,7 @@ class _RouteSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final route = trip.route!;
     final totalTime = trip.totalEstimatedMinutes;
+    final assessment = TripAssessment.forTrip(trip);
     final hardest = trip.stages.isEmpty
         ? null
         : trip.stages.reduce(
@@ -3016,6 +3018,43 @@ class _RouteSummary extends StatelessWidget {
                   difficultyColor(hardest.difficulty!.level),
                 ),
               ],
+            ),
+          ],
+          if (assessment != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  'Turvurdering: ',
+                  style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
+                ),
+                Flexible(
+                  child: StatusPill(
+                    assessment.level.label,
+                    switch (assessment.level) {
+                      AssessmentLevel.easy => NkColors.forestGreen,
+                      AssessmentLevel.planning => NkColors.warningAmber,
+                      AssessmentLevel.demanding => NkColors.dangerRed,
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            for (final p in assessment.points)
+              Text('• $p', style: const TextStyle(fontSize: 12)),
+            for (final c in assessment.caveats)
+              Text(
+                c,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: NkColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            Text(
+              'Bygger på turens tall, ikke på hvem du er. Du kjenner formen din best.',
+              style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
             ),
           ],
           const SizedBox(height: 8),

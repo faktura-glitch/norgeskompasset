@@ -13,6 +13,7 @@ import '../state/app_state.dart';
 import '../widgets/common.dart';
 import 'hiking_screen.dart';
 import 'meals_screen.dart';
+import 'packing_screen.dart' show showOwnedGearSheet;
 import 'recommendations_screen.dart';
 import 'review_screen.dart';
 import 'safety_screen.dart';
@@ -40,6 +41,74 @@ Future<void> _sendFeedback(BuildContext context) async {
   }
 }
 
+/// Compact two-column shortcut grid. (Wrap, not GridView: the parent
+/// ListView must stay the only scrollable.) An item without a screen
+/// calls [onTapNoScreen].
+class _ToolGrid extends StatelessWidget {
+  final List<(IconData, String, String, Widget?)> items;
+  final VoidCallback? onTapNoScreen;
+  const _ToolGrid({required this.items, this.onTapNoScreen});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final cellWidth = (constraints.maxWidth - 8) / 2;
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final (icon, title, subtitle, screen) in items)
+            SizedBox(
+              width: items.length == 1 ? constraints.maxWidth : cellWidth,
+              child: NkCard(
+                onTap: screen == null
+                    ? onTapNoScreen
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => screen),
+                      ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 18, color: NkColors.primaryBlue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (items.length == 1)
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: NkColors.textSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
@@ -49,18 +118,14 @@ class MoreScreen extends StatelessWidget {
     final trip = state.currentTrip;
     final wide = context.isWide;
 
-    final items = [
+    // Three groups: tools for the trip, safety, and the personal
+    // things that follow the user between trips.
+    final tools = [
       (
         Icons.cloud_outlined,
         'Vær langs ruten',
         'Prognose for etapper og punkter',
         const WeatherScreen(),
-      ),
-      (
-        Icons.lightbulb_outline,
-        'Smarte anbefalinger',
-        'Vær, terreng og forberedelser',
-        const RecommendationsScreen(),
       ),
       (
         Icons.restaurant_outlined,
@@ -69,10 +134,10 @@ class MoreScreen extends StatelessWidget {
         const MealsScreen(),
       ),
       (
-        Icons.shield_outlined,
-        'Del tur og sikkerhet',
-        'Turkort, nødnumre og innsjekking',
-        const SafetyScreen(),
+        Icons.lightbulb_outline,
+        'Smarte anbefalinger',
+        'Vær, terreng og forberedelser',
+        const RecommendationsScreen(),
       ),
       (
         Icons.navigation_outlined,
@@ -80,13 +145,16 @@ class MoreScreen extends StatelessWidget {
         'GPS-posisjon og etappefremdrift',
         const HikingScreen(),
       ),
+    ];
+    final safety = [
       (
-        Icons.rate_review_outlined,
-        'Turevaluering',
-        'Registrer erfaringer etter turen',
-        const ReviewScreen(),
+        Icons.shield_outlined,
+        'Del tur og sikkerhet',
+        'Turkort til pårørende, nødnumre og innsjekking',
+        const SafetyScreen(),
       ),
     ];
+    final ownedCount = state.profile.gear.length;
 
     User? user;
     try {
@@ -216,57 +284,45 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 14),
           const SectionHeader('Turverktøy', icon: Icons.hiking_outlined),
           const SizedBox(height: 10),
-          // Compact shortcut grid — the tools are reachable in
-          // two columns instead of one tall list, so Mer stays
-          // about account and settings. (Wrap, not GridView: the
-          // parent ListView must stay the only scrollable.)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final cellWidth = (constraints.maxWidth - 8) / 2;
-              return Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (icon, title, _, screen) in items)
-                    SizedBox(
-                      width: cellWidth,
-                      child: NkCard(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => screen),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(icon, size: 18, color: NkColors.primaryBlue),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                title,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
+          _ToolGrid(items: tools),
+          const SizedBox(height: 14),
+          const SectionHeader('Sikkerhet', icon: Icons.shield_outlined),
+          const SizedBox(height: 10),
+          _ToolGrid(items: safety),
+          const SizedBox(height: 14),
+          const SectionHeader('Personlig', icon: Icons.person_outline),
+          const SizedBox(height: 10),
+          _ProfileCard(state: state),
+          const SizedBox(height: 12),
+          _ToolGrid(
+            items: [
+              (
+                Icons.backpack_outlined,
+                ownedCount == 0 ? 'Mitt utstyr' : 'Mitt utstyr ($ownedCount)',
+                'Utstyr du har lagret med vekt',
+                null,
+              ),
+              (
+                Icons.rate_review_outlined,
+                'Turevaluering',
+                'Registrer erfaringer etter turen',
+                const ReviewScreen(),
+              ),
+            ],
+            onTapNoScreen: () {
+              if (trip == null) {
+                nkToast(
+                  context,
+                  'Velg en tur først – utstyret legges på turen.',
+                );
+                return;
+              }
+              showOwnedGearSheet(context, trip);
             },
           ),
           const SizedBox(height: 14),
           const SectionHeader('Innstillinger', icon: Icons.tune),
           const SizedBox(height: 10),
-          _ProfileCard(state: state),
-          const SizedBox(height: 12),
           _ThemeCard(state: state),
           const SizedBox(height: 12),
           _StorageCard(state: state),
