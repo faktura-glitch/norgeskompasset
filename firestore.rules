@@ -58,9 +58,13 @@ service cloud.firestore {
       allow delete: if request.auth != null
                     && (resource.data.owner == request.auth.uid || isAdmin());
       // The owner may update everything. Other signed-in users may
-      // only add their own uid to reportedBy (abuse reports).
+      // only add their own uid to reportedBy (abuse reports). Admins
+      // may clear reportedBy when they keep a reviewed entry.
       allow update: if request.auth != null && (
         resource.data.owner == request.auth.uid ||
+        (isAdmin()
+         && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(['reportedBy'])) ||
         (request.resource.data.diff(resource.data)
              .affectedKeys().hasOnly(['reportedBy'])
          && request.resource.data.reportedBy is list

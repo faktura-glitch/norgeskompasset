@@ -549,6 +549,25 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// Reported tours waiting for an admin decision (0 for non-admins).
+  List<CatalogTrip> get pendingReview => isAdmin
+      ? [
+          for (final e in catalog)
+            if (e.hidden) e,
+        ]
+      : const [];
+
+  /// Admin review: keeps a reported tour by clearing its reports.
+  Future<bool> adminKeepCatalogEntry(CatalogTrip entry) async {
+    if (!isAdmin) return false;
+    final ok = await repo.clearCatalogReports(entry.id);
+    if (ok) {
+      entry.reportedBy = [];
+      notifyListeners();
+    }
+    return ok;
+  }
+
   /// Removes any shared tour — the Firestore rules only allow this for
   /// uids in config/admins.
   Future<bool> adminDeleteCatalogEntry(CatalogTrip entry) async {

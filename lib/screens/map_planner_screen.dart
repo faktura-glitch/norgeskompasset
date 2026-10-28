@@ -80,7 +80,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
 
   /// Published tours (catalogTrips) shown as start-point pills with
   /// their grade; the selected one is drawn on the map.
-  bool _catalogLayer = false;
+  bool _catalogLayer = true;
   CatalogTrip? _catalogSelected;
 
   // OpenSnowMap ski-trail overlay (toggled from the map).
@@ -200,6 +200,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   void initState() {
     super.initState();
     _centerOnUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final s = context.read<AppState>();
+      if (_catalogLayer && !s.localOnly && !s.catalogLoaded) s.loadCatalog();
+    });
   }
 
   @override
@@ -968,7 +973,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               MarkerLayer(
                 markers: [
                   for (final e in context.watch<AppState>().catalog)
-                    if (e.route.start != null)
+                    // Reported tours stay off the map until reviewed.
+                    if (!e.hidden && e.route.start != null)
                       Marker(
                         point: e.route.start!,
                         width: 160,
@@ -1260,7 +1266,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         _catalogLayer = on;
                         _catalogSelected = null;
                       });
-                      if (on) context.read<AppState>().loadCatalog();
+                      final s = context.read<AppState>();
+                      if (on && !s.localOnly) s.loadCatalog();
                     } else if (v == 'bratthet') {
                       final on = !_steepnessLayer;
                       setState(() => _steepnessLayer = on);
@@ -1270,8 +1277,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                           'Bratthetskart fra NVE: farget terreng er brattere enn 27° – jo mørkere, jo brattere. Snøskred løsner oftest i 30–45°. Sjekk alltid varsom.no.',
                         );
                       }
-                    } else if (v == 'trails' &&
-                        _trip?.activity == TripActivity.ski) {
+                    } else if (v == 'ski') {
                       setState(() => _mapSettings.skiOverride = !_skiOverlay);
                     } else if (v == 'trails') {
                       setState(() {
@@ -1330,18 +1336,13 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       child: Text('OpenStreetMap'),
                     ),
                     const PopupMenuDivider(),
-                    // One «trails» toggle: ski tracks on a ski trip,
-                    // marked hiking trails otherwise.
+                    // Ski tracks are a separate toggle (on by default on
+                    // ski trips). The Turrutebase trail layer is not in
+                    // the menu any more – coverage was too patchy.
                     CheckedPopupMenuItem(
-                      value: 'trails',
-                      checked: _trip?.activity == TripActivity.ski
-                          ? _skiOverlay
-                          : _trailLayer,
-                      child: Text(
-                        _trip?.activity == TripActivity.ski
-                            ? 'Skiløyper · ikke prepareringsstatus'
-                            : 'Merkede stier og turruter',
-                      ),
+                      value: 'ski',
+                      checked: _skiOverlay,
+                      child: const Text('Skiløyper · ikke prepareringsstatus'),
                     ),
                     CheckedPopupMenuItem(
                       value: 'bratthet',

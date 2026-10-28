@@ -524,6 +524,19 @@ class TripRepository {
     }
   }
 
+  /// Admin review: clears the reports so the entry is visible again.
+  /// The Firestore rules only allow this for uids in config/admins.
+  Future<bool> clearCatalogReports(String id) async {
+    final doc = _catalog?.doc(id);
+    if (doc == null) return false;
+    try {
+      await _serialize(() => doc.update({'reportedBy': <String>[]}));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> deleteCatalogEntry(String id) async {
     try {
       final doc = _catalog?.doc(id);

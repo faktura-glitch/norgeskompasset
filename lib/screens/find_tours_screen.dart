@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/format.dart';
 import '../core/test_env.dart';
+import '../core/theme.dart';
 import '../models/catalog_trip.dart';
 import '../models/route_models.dart';
 import '../models/stage.dart';
@@ -329,6 +330,16 @@ class _FindToursScreenState extends State<FindToursScreen> {
     );
   }
 
+  /// Admin review: keeps a reported tour (clears its reports).
+  Future<void> _adminKeep(CatalogTrip entry) async {
+    final done = await context.read<AppState>().adminKeepCatalogEntry(entry);
+    if (!mounted) return;
+    nkToast(
+      context,
+      done ? 'Turen beholdes og er synlig igjen.' : 'Kunne ikke oppdatere. Sjekk at din bruker-ID står i config/admins.',
+    );
+  }
+
   Future<void> _reportEntry(CatalogTrip entry) async {
     final ok = await context.read<AppState>().reportCatalogEntry(entry);
     if (!mounted) return;
@@ -374,6 +385,52 @@ class _FindToursScreenState extends State<FindToursScreen> {
               label: const Text('Oppdater delte turer'),
             ),
             if (_loading || _saving) const LinearProgressIndicator(),
+            if (state.pendingReview.isNotEmpty)
+              Card(
+                color: NkColors.warningAmber.withValues(alpha: 0.15),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${fmtCount(state.pendingReview.length, 'rapportert tur', 'rapporterte turer')} venter på vurdering',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const Text(
+                        'Skjult for vanlige brukere til du bestemmer deg. '
+                        'Trykk på turen for å se ruten.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      for (final entry in state.pendingReview) ...[
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              '${entry.name} · ${entry.reportedBy.length} rapporter',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => _adminKeep(entry),
+                              child: const Text('Behold'),
+                            ),
+                            TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => _adminDelete(entry),
+                              child: const Text('Slett'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             if (!_loading && entries.isEmpty)
               const Text(
                 'Ingen delte turer å vise. Prøv et annet søk, eller publiser en egen tur fra Turer.',

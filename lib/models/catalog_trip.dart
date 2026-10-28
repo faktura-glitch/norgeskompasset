@@ -32,6 +32,9 @@ class CatalogTrip {
   /// Reports needed before an entry is hidden from listings.
   static const reportHideThreshold = 3;
 
+  /// Hidden from ordinary users until an admin keeps or deletes it.
+  bool get hidden => reportedBy.length >= reportHideThreshold;
+
   CatalogTrip({
     required this.id,
     required this.ownerUid,
