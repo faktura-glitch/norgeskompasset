@@ -1367,9 +1367,13 @@ class _Header extends StatelessWidget {
                                       Icons.tips_and_updates_outlined,
                                       size: 16,
                                     ),
-                                    label: Text(
-                                      'Spar opptil ${fmtWeight(saveable)} – se ${smart.length} forslag',
-                                      style: const TextStyle(fontSize: 12),
+                                    // Flexible so a long label wraps
+                                    // instead of overflowing the row.
+                                    label: Flexible(
+                                      child: Text(
+                                        'Spar opptil ${fmtWeight(saveable)} – se ${smart.length} forslag',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2174,9 +2178,11 @@ class _HiddenSuggestions extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton.icon(
         icon: const Icon(Icons.visibility_outlined, size: 16),
-        label: Text(
-          '${trip.deletedGearIds.length} skjulte forslag – vis og gjenopprett',
-          style: const TextStyle(fontSize: 12),
+        label: Flexible(
+          child: Text(
+            '${trip.deletedGearIds.length} skjulte forslag – vis og gjenopprett',
+            style: const TextStyle(fontSize: 12),
+          ),
         ),
         onPressed: () async {
           await showDialog<void>(

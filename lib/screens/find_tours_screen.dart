@@ -6,6 +6,7 @@ import '../core/format.dart';
 import '../core/test_env.dart';
 import '../models/catalog_trip.dart';
 import '../models/route_models.dart';
+import '../models/stage.dart';
 import '../models/trip.dart';
 import '../services/map_display_settings.dart';
 import '../services/tile_cache.dart';
@@ -382,7 +383,8 @@ class _FindToursScreenState extends State<FindToursScreen> {
                 child: ListTile(
                   title: Text(entry.name),
                   subtitle: Text(
-                    '${entry.region} · ${fmtKm(entry.route.distanceMeters)}\n'
+                    '${entry.difficulty.gradeLabel} · ${entry.region} · '
+                    '${fmtKm(entry.route.distanceMeters)}\n'
                     '${entry.reportedBy.length >= CatalogTrip.reportHideThreshold ? 'Skjult for brukere – ${entry.reportedBy.length} rapporter' : 'Brukerpublisert · ikke kontrollert'}',
                   ),
                   trailing: const Icon(Icons.chevron_right),

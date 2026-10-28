@@ -14,6 +14,7 @@ import '../core/format.dart';
 import '../core/geo.dart';
 import '../core/theme.dart';
 import '../models/route_models.dart';
+import '../models/catalog_trip.dart';
 import '../models/stage.dart';
 import '../models/trip.dart';
 import '../services/geocoding_service.dart';
@@ -28,6 +29,7 @@ import '../state/app_state.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
 import '../widgets/trip_details_sheet.dart';
+import 'find_tours_screen.dart';
 import 'elevation_screen.dart';
 
 /// Kartverket topo tiles (free) with OSM fallback.
@@ -76,8 +78,89 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   bool _loopGenerated = false;
   bool _steepnessLayer = false;
 
+  /// Published tours (catalogTrips) shown as start-point pills with
+  /// their grade; the selected one is drawn on the map.
+  bool _catalogLayer = false;
+  CatalogTrip? _catalogSelected;
+
   // OpenSnowMap ski-trail overlay (toggled from the map).
   bool get _skiOverlay => _mapSettings.skiFor(_trip?.activity);
+
+  void _showCatalogEntry(CatalogTrip e) {
+    setState(() => _catalogSelected = e);
+    final r = e.route;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      e.name.isEmpty ? 'Delt tur' : e.name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  StatusPill(
+                    e.difficulty.gradeLabel,
+                    difficultyColor(e.difficulty),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${fmtKm(r.distanceMeters)} · +${r.totalAscent.round()} m · '
+                '${fmtCount(e.durationDays, 'dag', 'dager')}'
+                '${e.region.isNotEmpty ? ' · ${e.region}' : ''}',
+                style: TextStyle(fontSize: 13, color: NkColors.textSecondary),
+              ),
+              if (e.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    e.description,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              const SizedBox(height: 6),
+              Text(
+                'Karakteren bygger på lengde, stigning og bratthet. '
+                'Brukerpublisert – ikke kontrollert.',
+                style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FindToursScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.hiking),
+                  label: const Text('Åpne i Turer delt av andre'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   // Turrutebase layer — official Kartverket trails fetched per
   // viewport (WFS/GML). All types are fetched; the season decides
@@ -869,6 +952,37 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
               ),
             if (route?.hasRoute == true)
               PolylineLayer(polylines: routePolylines(route!)),
+            if (_catalogLayer && _catalogSelected != null)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: [
+                      for (final p in _catalogSelected!.route.points) p.latLng,
+                    ],
+                    color: NkColors.primaryBlue.withValues(alpha: 0.6),
+                    strokeWidth: 4,
+                  ),
+                ],
+              ),
+            if (_catalogLayer)
+              MarkerLayer(
+                markers: [
+                  for (final e in context.watch<AppState>().catalog)
+                    if (e.route.start != null)
+                      Marker(
+                        point: e.route.start!,
+                        width: 160,
+                        height: 34,
+                        child: GestureDetector(
+                          onTap: () => _showCatalogEntry(e),
+                          child: _CatalogPill(
+                            e,
+                            selected: e.id == _catalogSelected?.id,
+                          ),
+                        ),
+                      ),
+                ],
+              ),
             MarkerLayer(
               markers: [
                 for (final w in _anchors)
@@ -1140,6 +1254,13 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                           'Laster ned kartfliser langs ruten – fremdrift og lagret mengde ser du på Sikkerhet-siden.',
                         );
                       }
+                    } else if (v == 'delte') {
+                      final on = !_catalogLayer;
+                      setState(() {
+                        _catalogLayer = on;
+                        _catalogSelected = null;
+                      });
+                      if (on) context.read<AppState>().loadCatalog();
                     } else if (v == 'bratthet') {
                       final on = !_steepnessLayer;
                       setState(() => _steepnessLayer = on);
@@ -1226,6 +1347,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       value: 'bratthet',
                       checked: _steepnessLayer,
                       child: const Text('Bratthet (NVE) · skredterreng'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'delte',
+                      checked: _catalogLayer,
+                      child: const Text('Delte turer · Lett/Middels/Krevende'),
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
@@ -1951,6 +2077,59 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 color: NkColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Start-point pill for a published tour: name plus grade colour.
+class _CatalogPill extends StatelessWidget {
+  final CatalogTrip entry;
+  final bool selected;
+  const _CatalogPill(this.entry, {required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = difficultyColor(entry.difficulty);
+    return Align(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? NkColors.primaryBlue : color,
+            width: selected ? 2 : 1,
+          ),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                entry.name.isEmpty ? 'Delt tur' : entry.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              entry.difficulty.gradeLabel,
+              style: TextStyle(fontSize: 10, color: NkColors.textSecondary),
             ),
           ],
         ),

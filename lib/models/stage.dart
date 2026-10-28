@@ -3,6 +3,13 @@ import 'route_models.dart';
 enum DifficultyLevel { easy, moderate, challenging, demanding }
 
 extension DifficultyLevelX on DifficultyLevel {
+  /// Three-step grade shown on shared tours: Lett / Middels / Krevende.
+  String get gradeLabel => switch (this) {
+    DifficultyLevel.easy => 'Lett',
+    DifficultyLevel.moderate => 'Middels',
+    _ => 'Krevende',
+  };
+
   String get label => switch (this) {
     DifficultyLevel.easy => 'Enkel',
     DifficultyLevel.moderate => 'Middels',
