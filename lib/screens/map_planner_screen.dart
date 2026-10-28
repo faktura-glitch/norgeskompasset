@@ -2478,46 +2478,59 @@ class _QuickSetupSheetState extends State<_QuickSetupSheet> {
               ),
             ),
             _question('Hvem blir med?'),
-            Row(
+            // Wrap, not Row: on narrow screens the two steppers and the
+            // dog chip do not fit on one line.
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                IconButton(
-                  tooltip: 'Færre deltakere',
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: _people > 1
-                      ? () => setState(() => _people--)
-                      : null,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Færre deltakere',
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: _people > 1
+                          ? () => setState(() => _people--)
+                          : null,
+                    ),
+                    Text(
+                      fmtCount(_people, 'person', 'personer'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    IconButton(
+                      tooltip: 'Flere deltakere',
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: _people < 20
+                          ? () => setState(() => _people++)
+                          : null,
+                    ),
+                  ],
                 ),
-                Text(
-                  fmtCount(_people, 'person', 'personer'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Færre barn',
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: _children > 0
+                          ? () => setState(() => _children--)
+                          : null,
+                    ),
+                    Text(
+                      '$_children barn',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    IconButton(
+                      tooltip: 'Flere barn',
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: _children < _people - 1
+                          ? () => setState(() => _children++)
+                          : null,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'Flere deltakere',
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: _people < 20
-                      ? () => setState(() => _people++)
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  tooltip: 'Færre barn',
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: _children > 0
-                      ? () => setState(() => _children--)
-                      : null,
-                ),
-                Text(
-                  '$_children barn',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                IconButton(
-                  tooltip: 'Flere barn',
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: _children < _people - 1
-                      ? () => setState(() => _children++)
-                      : null,
-                ),
-                const Spacer(),
                 FilterChip(
                   label: const Text('Hund med'),
                   selected: _dog,
