@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
@@ -15,10 +16,22 @@ class NavController extends ChangeNotifier {
   int _tab = 0;
   int get tab => _tab;
   bool _mapExploreRequest = false;
+
+  /// False while the user scrolls down a [HideOnScrollScaffold] body:
+  /// the app bar and bottom menu slide away to give the list the screen.
+  final chromeVisible = ValueNotifier<bool>(true);
+
   void goTo(int tab) {
     if (_tab == tab) return;
     _tab = tab;
+    chromeVisible.value = true;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    chromeVisible.dispose();
+    super.dispose();
   }
 
   /// Switches to the map tab and asks it to open in explore mode
@@ -27,6 +40,7 @@ class NavController extends ChangeNotifier {
   void openMapExplore() {
     _mapExploreRequest = true;
     _tab = 1;
+    chromeVisible.value = true;
     notifyListeners();
   }
 
@@ -88,19 +102,124 @@ class AppShell extends StatelessWidget {
 
     return Scaffold(
       body: body,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: nav.tab,
-        onDestinationSelected: nav.goTo,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        indicatorColor: NkColors.forestGreen.withValues(alpha: 0.14),
-        destinations: [
-          for (final t in _tabs)
-            NavigationDestination(
-              icon: Icon(t.icon),
-              selectedIcon: Icon(t.active, color: NkColors.forestGreen),
-              label: t.label,
+      bottomNavigationBar: ValueListenableBuilder<bool>(
+        valueListenable: nav.chromeVisible,
+        builder: (context, visible, bar) =>
+            _Collapse(visible: visible, child: bar!),
+        child: NavigationBar(
+          selectedIndex: nav.tab,
+          onDestinationSelected: nav.goTo,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          indicatorColor: NkColors.forestGreen.withValues(alpha: 0.14),
+          destinations: [
+            for (final t in _tabs)
+              NavigationDestination(
+                icon: Icon(t.icon),
+                selectedIcon: Icon(t.active, color: NkColors.forestGreen),
+                label: t.label,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _chromeAnimation = Duration(milliseconds: 200);
+
+class _Collapse extends StatelessWidget {
+  final bool visible;
+  final Widget child;
+
+  const _Collapse({required this.visible, required this.child});
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(end: visible ? 1.0 : 0.0),
+    duration: _chromeAnimation,
+    curve: Curves.easeOut,
+    builder: (context, f, child) => ClipRect(
+      child: Align(
+        alignment: Alignment.topCenter,
+        heightFactor: f,
+        child: child,
+      ),
+    ),
+    child: child,
+  );
+}
+
+/// A [Scaffold] whose app bar, together with the shell's bottom menu,
+/// slides away while the user scrolls the body down and comes back on
+/// scroll up, so long lists (trips, packing) get the whole screen.
+class HideOnScrollScaffold extends StatelessWidget {
+  final PreferredSizeWidget appBar;
+  final Widget body;
+  final Widget? floatingActionButton;
+
+  const HideOnScrollScaffold({
+    super.key,
+    required this.appBar,
+    required this.body,
+    this.floatingActionButton,
+  });
+
+  /// Lists barely taller than the screen keep their menus: hiding them
+  /// could make the list fit, leaving no scroll gesture to bring them back.
+  static const _minScrollToHide = 160.0;
+
+  static bool _onScroll(UserScrollNotification n, ValueNotifier<bool> shown) {
+    final m = n.metrics;
+    if (m.axis != Axis.vertical) return false;
+    if (n.direction == ScrollDirection.forward) {
+      shown.value = true;
+    } else if (n.direction == ScrollDirection.reverse &&
+        m.maxScrollExtent > _minScrollToHide) {
+      shown.value = false;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ValueNotifier<bool> shown;
+    try {
+      shown = context.read<NavController>().chromeVisible;
+    } on ProviderNotFoundException {
+      // Outside the app shell (e.g. isolated widget tests): no menus to hide.
+      return Scaffold(
+        appBar: appBar,
+        body: body,
+        floatingActionButton: floatingActionButton,
+      );
+    }
+    final barHeight = appBar.preferredSize.height;
+    final fullHeight = MediaQuery.paddingOf(context).top + barHeight;
+    final content = NotificationListener<UserScrollNotification>(
+      onNotification: (n) => _onScroll(n, shown),
+      child: body,
+    );
+    return ValueListenableBuilder<bool>(
+      valueListenable: shown,
+      builder: (context, visible, _) => TweenAnimationBuilder<double>(
+        tween: Tween(end: visible ? 1.0 : 0.0),
+        duration: _chromeAnimation,
+        curve: Curves.easeOut,
+        builder: (context, f, _) => Scaffold(
+          appBar: PreferredSize(
+            preferredSize: Size.fromHeight(barHeight * f),
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.bottomCenter,
+                minHeight: fullHeight,
+                maxHeight: fullHeight,
+                child: appBar,
+              ),
             ),
-        ],
+          ),
+          body: content,
+          floatingActionButton: floatingActionButton,
+        ),
       ),
     );
   }

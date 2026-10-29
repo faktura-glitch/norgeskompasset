@@ -492,17 +492,17 @@ class _MountainPainter extends CustomPainter {
 class NkImages {
   NkImages._();
   static const besseggenPano =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Bessegen%20pano.jpg?width=1400';
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Bessegen_pano.jpg/1920px-Bessegen_pano.jpg';
   static const hardangerviddaTent =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Hiking%20tent%20Hardangervidda%20Norway%20%2860.015%2C%206.718%29.JPG?width=1200';
+      'https://upload.wikimedia.org/wikipedia/commons/a/a7/Hiking_tent_Hardangervidda_Norway_%2860.015%2C_6.718%29.JPG';
   static const lofoten =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Sakris%C3%B8y%20village%20and%20mountains%20Lofoten%20Norway.jpg?width=1400';
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Sakris%C3%B8y_village_and_mountains_Lofoten_Norway.jpg/1920px-Sakris%C3%B8y_village_and_mountains_Lofoten_Norway.jpg';
   static const besseggenRidge =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Besseggen%20ridge.jpg?width=1400';
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Besseggen_ridge.jpg/1920px-Besseggen_ridge.jpg';
   static const jotunheimen =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Jotunheimen%20mountains.jpg?width=1400';
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Jotunheimen_mountains.jpg/1920px-Jotunheimen_mountains.jpg';
   static const primusStove =
-      'https://commons.wikimedia.org/wiki/Special:FilePath/Primus%20stove.jpg?width=1200';
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Primus_stove.jpg/1280px-Primus_stove.jpg';
 
   // Photos from norgeskompasset.no (Wix media CDN)
   static const nkGroup =

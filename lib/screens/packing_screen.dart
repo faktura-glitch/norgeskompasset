@@ -15,6 +15,7 @@ import '../services/smart_load.dart';
 import '../services/what_if.dart';
 import '../services/trip_analysis.dart';
 import '../state/app_state.dart';
+import '../widgets/app_shell.dart';
 import '../widgets/common.dart';
 import 'map_planner_screen.dart' show showTripQuickSetup;
 import 'meals_screen.dart';
@@ -501,7 +502,7 @@ class _PackingScreenState extends State<PackingScreen> {
     final trip = state.currentTrip;
     final wide = context.isWide;
 
-    return Scaffold(
+    return HideOnScrollScaffold(
       appBar: AppBar(
         title: tripScreenTitle('Pakkeliste', trip),
         actions: [

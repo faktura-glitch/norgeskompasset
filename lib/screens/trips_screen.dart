@@ -59,7 +59,7 @@ class _TripsScreenState extends State<TripsScreen> {
         )
         .toList();
 
-    return Scaffold(
+    return HideOnScrollScaffold(
       appBar: AppBar(
         title: const Text('Turer'),
         actions: [
