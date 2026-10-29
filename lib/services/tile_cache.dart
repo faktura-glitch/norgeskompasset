@@ -178,7 +178,10 @@ class TileCache {
           missing.skip(i).take(batch).map((u) async {
             try {
               final res = await httpClient
-                  .get(Uri.parse(u), headers: {'User-Agent': kUserAgent})
+                  .get(
+                    Uri.parse(u),
+                    headers: {if (!kIsWeb) 'User-Agent': kUserAgent},
+                  )
                   .timeout(const Duration(seconds: 15));
               if (res.statusCode == 200) {
                 await write(u, res.bodyBytes);
@@ -257,7 +260,7 @@ class _CachedTileImage extends ImageProvider<_CachedTileImage> {
   static Future<Uint8List?> _fetch(String url) async {
     try {
       final res = await http
-          .get(Uri.parse(url), headers: {'User-Agent': kUserAgent})
+          .get(Uri.parse(url), headers: {if (!kIsWeb) 'User-Agent': kUserAgent})
           .timeout(const Duration(seconds: 15));
       return res.statusCode == 200 ? res.bodyBytes : null;
     } catch (_) {

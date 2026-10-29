@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:xml/xml.dart';
@@ -135,7 +136,7 @@ class TurrutebaseService {
     http.Response res;
     try {
       res = await http
-          .get(uri, headers: {'User-Agent': kUserAgent})
+          .get(uri, headers: {if (!kIsWeb) 'User-Agent': kUserAgent})
           // Responses run to ~1.5 MB of GML for 400 routes.
           .timeout(const Duration(seconds: 45));
     } catch (e) {
