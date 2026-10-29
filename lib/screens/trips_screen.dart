@@ -123,7 +123,10 @@ class _TripsScreenState extends State<TripsScreen> {
                 ],
               ),
             )
-          : Column(
+          : ListView(
+              // Teaser, shortcuts, search and filters scroll with the trips
+              // so they slide away together with the menus.
+              padding: const EdgeInsets.only(bottom: 100),
               children: [
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -152,55 +155,57 @@ class _TripsScreenState extends State<TripsScreen> {
                     onChanged: (v) => setState(() => _query = v),
                   ),
                 ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final (i, label) in [
-                      'Alle',
-                      'Kommende',
-                      'Pågående',
-                      'Fullførte',
-                    ].indexed)
-                      ChoiceChip(
-                        label: Text(label),
-                        selected: _filter == i,
-                        onSelected: (_) => setState(() => _filter = i),
-                      ),
-                  ],
+                Center(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final (i, label) in [
+                        'Alle',
+                        'Kommende',
+                        'Pågående',
+                        'Fullførte',
+                      ].indexed)
+                        ChoiceChip(
+                          label: Text(label),
+                          selected: _filter == i,
+                          onSelected: (_) => setState(() => _filter = i),
+                        ),
+                    ],
+                  ),
                 ),
                 if (_joining) const LinearProgressIndicator(),
-                Expanded(
-                  child: trips.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Ingen turer matcher søket eller filteret.',
-                              ),
-                              TextButton(
-                                onPressed: () => setState(() {
-                                  _query = '';
-                                  _filter = 0;
-                                  _searchCtrl.clear();
-                                }),
-                                child: const Text('Nullstill søk og filter'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.fromLTRB(
-                            context.isWide ? 28 : 16,
-                            16,
-                            16,
-                            100,
-                          ),
-                          itemCount: trips.length,
-                          itemBuilder: (_, i) => _TripTile(trip: trips[i]),
+                if (trips.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 48),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Ingen turer matcher søket eller filteret.'),
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _query = '';
+                            _filter = 0;
+                            _searchCtrl.clear();
+                          }),
+                          child: const Text('Nullstill søk og filter'),
                         ),
-                ),
+                      ],
+                    ),
+                  )
+                else ...[
+                  const SizedBox(height: 16),
+                  for (final trip in trips)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        context.isWide ? 28 : 16,
+                        0,
+                        16,
+                        0,
+                      ),
+                      child: _TripTile(trip: trip),
+                    ),
+                ],
               ],
             ),
       floatingActionButton: state.trips.isEmpty
