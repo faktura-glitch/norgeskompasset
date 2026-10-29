@@ -976,7 +976,13 @@ class _PackingBody extends StatelessWidget {
       grouped.putIfAbsent(i.category, () => []).add(i);
     }
 
-    return Column(
+    final pad = wide ? 28.0 : 16.0;
+    // One scroll view for header, filters and items, so the summary
+    // scrolls away too and the list gets the whole screen. Extra bottom
+    // padding so the last item clears the FAB — the + button must never
+    // cover an item's weight.
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 96),
       children: [
         _Header(
           trip: trip,
@@ -999,16 +1005,10 @@ class _PackingBody extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
-          child: ListView(
-            // Extra bottom padding so the last item clears the FAB —
-            // the + button must never cover an item's weight.
-            padding: EdgeInsets.fromLTRB(
-              wide ? 28 : 16,
-              wide ? 28 : 16,
-              wide ? 28 : 16,
-              96,
-            ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _PlanningBasis(trip: trip),
               if (trip.deletedGearIds.isNotEmpty)
