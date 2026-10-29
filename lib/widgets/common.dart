@@ -494,6 +494,7 @@ class NkImages {
 
   /// Bundled with the app (no network needed).
   static const forside = 'assets/branding/forside.jpg';
+  static const login = 'assets/branding/login.jpg';
   static const besseggenPano =
       'https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Bessegen_pano.jpg/1920px-Bessegen_pano.jpg';
   static const hardangerviddaTent =

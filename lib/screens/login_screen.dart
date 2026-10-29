@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -147,13 +146,11 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Full-bleed photo from norgeskompasset.no with silhouette fallback
-          CachedNetworkImage(
-            imageUrl: NkImages.nkTrail,
+          // Full-bleed bundled photo with a plain-colour fallback
+          Image.asset(
+            NkImages.login,
             fit: BoxFit.cover,
-            placeholder: (ctx, _) =>
-                const ColoredBox(color: NkColors.primaryBlueDark),
-            errorWidget: (ctx, _, _) =>
+            errorBuilder: (ctx, _, _) =>
                 const ColoredBox(color: NkColors.primaryBlueDark),
           ),
           Container(
