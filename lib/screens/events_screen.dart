@@ -326,57 +326,43 @@ class EventsTeaser extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final next = state.events.where((e) => !e.isPast).take(3).toList();
+    final upcoming = state.events.where((e) => !e.isPast).toList();
+    final next = upcoming.firstOrNull;
+    final subtitle = next != null
+        ? '${next.title} · ${fmtDate(next.start)}'
+        : state.eventsLoading
+        ? 'Henter arrangementer …'
+        : (state.eventsError ?? 'Ingen kommende arrangementer akkurat nå.');
+    // A single compact row, so the trips below get the screen.
     return NkCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const EventsScreen()),
+      ),
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: SectionHeader(
-                  'Turkalender – bli med på tur',
-                  icon: Icons.event_outlined,
+          Icon(Icons.event_outlined, color: NkColors.primaryBlue),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  upcoming.length > 1
+                      ? 'Turkalender – ${upcoming.length} kommende'
+                      : 'Turkalender – bli med på tur',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const EventsScreen()),
-                ),
-                child: const Text('Se alle'),
-              ),
-            ],
-          ),
-          if (next.isEmpty)
-            Text(
-              state.eventsLoading
-                  ? 'Henter arrangementer …'
-                  : (state.eventsError ??
-                        'Ingen kommende arrangementer akkurat nå.'),
-              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
-            )
-          else
-            for (final e in next)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                leading: Icon(switch (e.kind) {
-                  EventKind.tur => Icons.hiking,
-                  EventKind.treff => Icons.local_cafe_outlined,
-                  EventKind.camp => Icons.cabin_outlined,
-                }, color: NkColors.primaryBlue),
-                title: Text(
-                  e.title,
+                Text(
+                  subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
                 ),
-                subtitle: Text(
-                  '${fmtDate(e.start)}${e.locationName != null ? ' · ${e.locationName}' : ''}',
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: () => showEventDetails(context, e),
-              ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right),
         ],
       ),
     );

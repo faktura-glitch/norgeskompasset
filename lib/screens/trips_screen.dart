@@ -133,45 +133,50 @@ class _TripsScreenState extends State<TripsScreen> {
                   child: EventsTeaser(),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          context.read<NavController>().openMapExplore(),
-                      icon: const Icon(Icons.hiking),
-                      label: const Text('Se turer delt av andre'),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
                   child: TextField(
                     controller: _searchCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Søk i turene dine',
-                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                      hintText: 'Søk i turene dine',
+                      prefixIcon: Icon(Icons.search, size: 20),
                     ),
                     onChanged: (v) => setState(() => _query = v),
                   ),
                 ),
-                Center(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      for (final (i, label) in [
-                        'Alle',
-                        'Kommende',
-                        'Pågående',
-                        'Fullførte',
-                      ].indexed)
-                        ChoiceChip(
-                          label: Text(label),
-                          selected: _filter == i,
-                          onSelected: (_) => setState(() => _filter = i),
+                // One swipeable row instead of wrapped lines and a separate
+                // full-width button, so more trips fit on a phone screen.
+                SizedBox(
+                  height: 40,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        for (final (i, label) in [
+                          'Alle',
+                          'Kommende',
+                          'Pågående',
+                          'Fullførte',
+                        ].indexed)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(label),
+                              selected: _filter == i,
+                              visualDensity: VisualDensity.compact,
+                              onSelected: (_) => setState(() => _filter = i),
+                            ),
+                          ),
+                        ActionChip(
+                          avatar: const Icon(Icons.travel_explore, size: 18),
+                          label: const Text('Delt av andre'),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () =>
+                              context.read<NavController>().openMapExplore(),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 if (_joining) const LinearProgressIndicator(),
@@ -399,6 +404,10 @@ class _TripTile extends StatelessWidget {
                   Icons.calendar_today_outlined,
                   '${fmtDate(trip.startDate)} – ${fmtDate(trip.endDate)}',
                 ),
+                metaChip(
+                  Icons.backpack_outlined,
+                  '${(trip.packingCompletion * 100).round()} % pakket',
+                ),
                 if (route?.hasRoute == true)
                   metaChip(Icons.route_outlined, fmtKm(route!.distanceMeters)),
                 metaChip(switch (trip.activity) {
@@ -424,18 +433,18 @@ class _TripTile extends StatelessWidget {
                   metaChip(Icons.group_outlined, 'Delt: ${trip.shareCode}'),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              '${(trip.packingCompletion * 100).round()} % pakket (etter vekt)',
-              style: TextStyle(color: NkColors.textSecondary),
-            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (trip.status != TripStatus.completed)
                   FilledButton.icon(
-                    icon: const Icon(Icons.navigation_outlined),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    icon: const Icon(Icons.navigation_outlined, size: 18),
                     label: const Text('Turmodus'),
                     onPressed: () {
                       state.selectTrip(trip.id);
@@ -548,7 +557,7 @@ class _TripTile extends StatelessWidget {
                     ),
                   ],
                   child: const Padding(
-                    padding: EdgeInsets.all(14),
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

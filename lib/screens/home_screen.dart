@@ -97,9 +97,11 @@ class _Header extends StatelessWidget {
     return Stack(
       children: [
         const ScenicImage(
-          url: NkImages.besseggenPano,
+          url: NkImages.forside,
           height: 190,
           overlayOpacity: 0.45,
+          // Keeps the sun in view when the square photo is cropped.
+          alignment: Alignment(0, -0.3),
         ),
         Positioned(
           left: 20,

@@ -85,6 +85,9 @@ void main() {
           child: const MaterialApp(home: TripsScreen()),
         ),
       );
+      // The status filters are one swipeable row on a phone.
+      await tester.ensureVisible(find.text('Fullførte', skipOffstage: false));
+      await tester.pump();
       await tester.tap(find.text('Fullførte'));
       await tester.pump();
       expect(find.text('Gammel tur'), findsOneWidget);

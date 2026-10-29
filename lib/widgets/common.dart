@@ -491,6 +491,9 @@ class _MountainPainter extends CustomPainter {
 /// never blocks on a photo.
 class NkImages {
   NkImages._();
+
+  /// Bundled with the app (no network needed).
+  static const forside = 'assets/branding/forside.jpg';
   static const besseggenPano =
       'https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/Bessegen_pano.jpg/1920px-Bessegen_pano.jpg';
   static const hardangerviddaTent =
@@ -521,6 +524,7 @@ class ScenicImage extends StatelessWidget {
   final double height;
   final Widget? child;
   final double overlayOpacity;
+  final Alignment alignment;
 
   const ScenicImage({
     super.key,
@@ -528,6 +532,7 @@ class ScenicImage extends StatelessWidget {
     required this.height,
     this.child,
     this.overlayOpacity = 0.45,
+    this.alignment = Alignment.center,
   });
 
   @override
@@ -539,15 +544,24 @@ class ScenicImage extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              memCacheWidth: 1600,
-              // Disk-cached — instant on revisit and works offline
-              // after first load.
-              placeholder: (ctx, _) => MountainHeader(height: height),
-              errorWidget: (ctx, _, _) => MountainHeader(height: height),
-            ),
+            if (url.startsWith('assets/'))
+              Image.asset(
+                url,
+                fit: BoxFit.cover,
+                alignment: alignment,
+                errorBuilder: (ctx, _, _) => MountainHeader(height: height),
+              )
+            else
+              CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                alignment: alignment,
+                memCacheWidth: 1600,
+                // Disk-cached — instant on revisit and works offline
+                // after first load.
+                placeholder: (ctx, _) => MountainHeader(height: height),
+                errorWidget: (ctx, _, _) => MountainHeader(height: height),
+              ),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
