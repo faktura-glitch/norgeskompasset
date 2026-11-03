@@ -1477,6 +1477,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> updatePackingItem(Trip trip, PackingItem item) async {
+    // Show the change at once: browser storage can be slow on phones,
+    // and a check mark must never wait for (or be lost on) a save.
+    notifyListeners();
     await repo.saveTrip(trip);
     notifyListeners();
   }

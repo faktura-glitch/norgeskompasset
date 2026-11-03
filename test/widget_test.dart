@@ -71,6 +71,37 @@ void main() {
       expect(find.text('finnes ikke'), findsNothing);
       expect(tester.takeException(), isNull);
     });
+    testWidgets('packing items can be checked off on a phone', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final item = PackingItem(
+        id: '1',
+        name: 'Lue',
+        category: PackingCategory.additional,
+        unitWeightGrams: 100,
+      );
+      final trip = Trip(id: 'p', name: 'Mobiltest')..packingList = [item];
+      final state = AppState(TripRepository())
+        ..trips = [trip]
+        ..currentTripId = trip.id;
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: state,
+          child: const MaterialApp(home: PackingScreen()),
+        ),
+      );
+      final box = find.byType(Checkbox);
+      await tester.ensureVisible(box);
+      await tester.pumpAndSettle();
+      await tester.tap(box);
+      await tester.pumpAndSettle();
+      expect(item.packed, isTrue);
+      expect(tester.widget<Checkbox>(box).value, isTrue);
+      await tester.tap(box);
+      await tester.pumpAndSettle();
+      expect(item.packed, isFalse);
+      expect(tester.takeException(), isNull);
+    });
     testWidgets('trip status filters show only matching trips', (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));

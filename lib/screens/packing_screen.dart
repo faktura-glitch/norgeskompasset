@@ -1565,8 +1565,17 @@ class _ItemRow extends StatelessWidget {
                 value: item.packed,
                 activeColor: NkColors.forestGreen,
                 onChanged: (v) async {
+                  final messenger = ScaffoldMessenger.maybeOf(context);
                   item.packed = v ?? false;
-                  await state.updatePackingItem(trip, item);
+                  try {
+                    await state.updatePackingItem(trip, item);
+                  } catch (e) {
+                    messenger?.showSnackBar(
+                      SnackBar(
+                        content: Text('Kunne ikke lagre avkrysningen: $e'),
+                      ),
+                    );
+                  }
                 },
               ),
               Expanded(
