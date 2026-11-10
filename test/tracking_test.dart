@@ -121,13 +121,51 @@ void main() {
     expect(source.subscriptions, 1);
   });
 
-  test('stream errors leave active state and permit retry', () async {
+  test('brief stream errors keep tracking and resubscribe', () async {
     await controller.start('trip-a');
+    expect(source.subscriptions, 1);
+    source.events.addError(StateError('GPS lost'));
+    expect(controller.phase, TrackingPhase.active);
+    expect(controller.error, contains('Søker'));
+    await Future<void>.delayed(const Duration(milliseconds: 2100));
+    expect(controller.phase, TrackingPhase.active);
+    expect(source.subscriptions, 2);
+  });
+
+  test('repeated stream errors eventually fail tracking', () async {
+    await controller.start('trip-a');
+    source.events.addError(StateError('GPS lost'));
+    await Future<void>.delayed(const Duration(milliseconds: 2100));
+    source.events.addError(StateError('GPS lost'));
+    await Future<void>.delayed(const Duration(milliseconds: 2100));
     source.events.addError(StateError('GPS lost'));
     expect(controller.phase, TrackingPhase.error);
     expect(controller.error, isNotNull);
     await controller.start('trip-a');
     expect(controller.phase, TrackingPhase.active);
+  });
+
+  test('inaccurate fixes are shown but not written to the track', () async {
+    await controller.start('trip-a');
+    final bad = Position(
+      latitude: 60.1,
+      longitude: 8.1,
+      timestamp: DateTime.now(),
+      accuracy: 120,
+      altitude: 100,
+      altitudeAccuracy: 1,
+      heading: 0,
+      headingAccuracy: 1,
+      speed: 1,
+      speedAccuracy: 1,
+    );
+    source.events.add(bad);
+    await controller.flush();
+    expect(controller.position?.accuracy, 120);
+    expect(recorded, isEmpty);
+    source.events.add(fix());
+    await controller.flush();
+    expect(recorded, ['trip-a']);
   });
 
   test(

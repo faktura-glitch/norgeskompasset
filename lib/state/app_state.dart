@@ -68,6 +68,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   String? lastError;
   bool localOnly = false;
 
+  /// Clears and returns [lastError] without notifying again when empty.
+  /// Used by the global snackbar so the field is not mutated in build.
+  String? takeError() {
+    final msg = lastError;
+    if (msg == null) return null;
+    lastError = null;
+    return msg;
+  }
+
   /// Latest forecast-driven packing change per trip id, until dismissed.
   final packingChanges = <String, PackingChange>{};
 
@@ -333,13 +342,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
-  /// Fetches the trip published under [code] and imports it as a new
-  /// local trip. The shared plan (route, dates, season, accommodation)
-  /// is kept, while personal data is reset — each participant builds
-  /// their own packing list, meal plan and recommendations from their
-  /// own profile and settings. Returns the imported trip, or null on
-  /// bad code/network failure.
-  Future<Trip?> joinSharedTrip(String code) async {
+  /// Fetches the plan published under [code]. A trip that already has
+  /// this code gets its route and dates updated; packing and meals stay.
+  /// The first fetch imports a new trip and clears personal lists.
+  /// Returns null on a bad code or a network failure.
+  Future<({Trip trip, bool updated})?> joinSharedTrip(String code) async {
     if (localOnly) {
       lastError = 'Logg inn fra Mer for å hente turkoder.';
       notifyListeners();
@@ -347,9 +354,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     final fetched = await repo.fetchSharedTrip(code);
     if (fetched == null) return null;
+    final normalized = code.trim().toUpperCase();
+    final existing = trips
+        .where((t) => t.shareCode?.toUpperCase() == normalized)
+        .firstOrNull;
+    if (existing != null) {
+      existing.applySharedPlan(fetched);
+      existing.shareCode = normalized;
+      currentTripId = existing.id;
+      await repo.saveTrip(existing);
+      notifyListeners();
+      return (trip: existing, updated: true);
+    }
     // Fresh local id — the snapshot keeps the owner's trip id, which
     // would otherwise clobber our copy if we already had it.
     fetched.id = const Uuid().v4();
+    fetched.shareCode = normalized;
     fetched.name = fetched.name.isEmpty ? 'Delt tur' : fetched.name;
     // Reset owner-specific state — everyone makes their own lists.
     fetched.status = TripStatus.draft;
@@ -367,7 +387,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     currentTripId = fetched.id;
     await repo.saveTrip(fetched);
     notifyListeners();
-    return fetched;
+    return (trip: fetched, updated: false);
   }
 
   void selectTrip(String id) {
@@ -400,6 +420,8 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     j['trackLog'] = <dynamic>[];
     j['review'] = null;
     j['lastSharedAt'] = null;
+    j['shareCode'] = null;
+    j['catalogId'] = null;
     j['createdAt'] = DateTime.now().toIso8601String();
     j['updatedAt'] = DateTime.now().toIso8601String();
     final copy = Trip.fromJson(j);
@@ -415,6 +437,10 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     // A deleted trip should not stay readable via its share code.
     if (deleted?.shareCode != null && !localOnly) {
       unawaited(repo.unpublishTrip(deleted!));
+    }
+    final catalogId = deleted?.catalogId;
+    if (catalogId != null && !localOnly) {
+      unawaited(repo.deleteCatalogEntry(catalogId));
     }
     trips.removeWhere((t) => t.id == id);
     if (currentTripId == id) {
@@ -601,6 +627,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     Trip trip, {
     String description = '',
     String region = '',
+    List<TripSeason> seasons = const [],
   }) async {
     if (localOnly) {
       lastError = 'Logg inn fra Mer for å publisere turer.';
@@ -615,15 +642,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
           ? s.difficulty!.level
           : acc,
     );
+    final chosen = seasons.isEmpty ? [trip.season] : seasons;
     final entry = CatalogTrip(
-      id: '',
+      id: trip.catalogId ?? '',
       ownerUid: '',
       name: trip.name.isEmpty ? 'Tur uten navn' : trip.name,
       description: description,
-      region: region,
+      region: region.trim(),
       route: HikingRoute.decode(route.encode()),
       difficulty: hardest,
-      seasons: [trip.season],
+      seasons: chosen,
       minLevel: hardest.index >= DifficultyLevel.challenging.index
           ? TourLevel.intermediate
           : TourLevel.novice,
@@ -633,8 +661,27 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     );
     final id = await repo.publishToCatalog(entry);
     if (id == null) return false;
+    trip.catalogId = id;
+    await repo.saveTrip(trip);
     catalogLoaded = false; // refetch so the new entry shows up
+    notifyListeners();
     return true;
+  }
+
+  /// Removes this trip's catalog entry. The local trip stays.
+  Future<String?> unpublishCatalog(Trip trip) async {
+    final id = trip.catalogId;
+    if (id == null) return null;
+    if (localOnly) return 'Logg inn fra Mer for å fjerne turen fra katalogen.';
+    final removed = await repo.deleteCatalogEntry(id);
+    if (!removed) {
+      return 'Kunne ikke fjerne turen. Sjekk at du er innlogget og på nett.';
+    }
+    trip.catalogId = null;
+    await repo.saveTrip(trip);
+    catalog = [for (final e in catalog) if (e.id != id) e];
+    notifyListeners();
+    return null;
   }
 
   /// Creates a fresh local trip from a catalog entry — the route is

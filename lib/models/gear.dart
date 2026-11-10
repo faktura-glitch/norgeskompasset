@@ -39,9 +39,20 @@ class TripConditions {
   /// Lowest expected temperature, or null when no forecast exists.
   /// Unknown is NEVER treated as warm: items gated on cold keep being
   /// suggested, warm-only extras are left out.
+  ///
+  /// When [minTempEstimated] is true, the value includes about 0.65 °C
+  /// per 100 m between the forecast altitude and the route high point.
+  /// It is a planning estimate, not a measured temperature.
   final double? minTemp;
+  final bool minTempEstimated;
   final bool rain;
+
+  /// One forecast hour ≥ 5 mm, or ≥ 15 mm in the stage window.
+  final bool heavyRain;
   final bool strongWind;
+
+  /// Sustained ≥ 17.2 m/s or gusts ≥ 25 m/s.
+  final bool storm;
   final bool snow;
   final bool cold;
   final bool darkEvenings;
@@ -61,6 +72,10 @@ class TripConditions {
   final bool snowshoes;
   final bool fishing;
 
+  /// Steepest local grade from the elevation profile, in degrees.
+  /// Null when the profile has no close samples. Not an NVE raster value.
+  final double? maxSlopeDegrees;
+
   const TripConditions({
     required this.activity,
     required this.carry,
@@ -72,8 +87,11 @@ class TripConditions {
     required this.people,
     this.children = 0,
     this.minTemp,
+    this.minTempEstimated = false,
     this.rain = false,
+    this.heavyRain = false,
     this.strongWind = false,
+    this.storm = false,
     this.snow = false,
     this.cold = false,
     this.darkEvenings = false,
@@ -88,6 +106,7 @@ class TripConditions {
     this.skiStyle = SkiStyle.fjellski,
     this.snowshoes = false,
     this.fishing = false,
+    this.maxSlopeDegrees,
   });
 
   bool get overnight => accommodation != AccommodationType.dayHike;
@@ -178,6 +197,12 @@ class GearItem {
   final int minDays;
   final Set<WeatherFlag> needsWeather;
   final Set<WeatherFlag> anyWeather;
+
+  /// Include only when a single hour or the window total is heavy rain.
+  final bool heavyRainOnly;
+
+  /// Include only in near-gale / storm, not in a fresh breeze.
+  final bool stormOnly;
   final double? onlyAtOrBelowC;
   final double? onlyAtOrAboveC;
   final Set<TripActivity> warmExcluded;
@@ -222,6 +247,8 @@ class GearItem {
     this.minDays = 1,
     this.needsWeather = const {},
     this.anyWeather = const {},
+    this.heavyRainOnly = false,
+    this.stormOnly = false,
     this.onlyAtOrBelowC,
     this.onlyAtOrAboveC,
     this.warmExcluded = const {},
@@ -287,6 +314,8 @@ class GearItem {
     if (c.days < minDays) return false;
     if (needsWeather.any((f) => !c.has(f))) return false;
     if (anyWeather.isNotEmpty && !anyWeather.any(c.has)) return false;
+    if (heavyRainOnly && !c.heavyRain) return false;
+    if (stormOnly && !c.storm) return false;
     // Cold-gated gear: unknown temperature stays included on purpose.
     if (onlyAtOrBelowC != null &&
         c.minTemp != null &&

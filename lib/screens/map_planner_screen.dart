@@ -20,6 +20,7 @@ import '../models/trip.dart';
 import '../services/geocoding_service.dart';
 import '../services/gpx_service.dart';
 import '../services/map_display_settings.dart';
+import '../services/hut_service.dart';
 import '../services/turrutebase_service.dart';
 import '../services/weather_service.dart' show ServiceException;
 import '../services/tile_cache.dart';
@@ -175,6 +176,17 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
   String? _trailError;
   Set<TrailType> _seasonalTypes = {};
 
+  /// Tourist huts from OpenStreetMap (same tags as datakart.no/hytter).
+  /// On by default: the side button sits in a scrolling column and is
+  /// easy to miss, so the map asks for huts as soon as the view is close.
+  bool _hutLayer = true;
+  List<TouristHut> _huts = [];
+  LatLngBounds? _hutFetchedBounds;
+  Timer? _hutDebounce;
+  int _hutGeneration = 0;
+  bool _hutLoading = false;
+  String? _hutError;
+
   // Working waypoint anchors for the trip being edited.
   final List<Waypoint> _anchors = [];
 
@@ -264,6 +276,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     _searchCtrl.dispose();
     _debounce?.cancel();
     _trailDebounce?.cancel();
+    _hutDebounce?.cancel();
     _mapCtrl.dispose();
     super.dispose();
   }
@@ -289,6 +302,20 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         _trailDebounce = Timer(
           const Duration(milliseconds: 700),
           () => _fetchTrails(bounds),
+        );
+      }
+    }
+    if (_hutLayer && cam.zoom >= 10) {
+      final f = _hutFetchedBounds;
+      if (f == null ||
+          bounds.south < f.south ||
+          bounds.north > f.north ||
+          bounds.west < f.west ||
+          bounds.east > f.east) {
+        _hutDebounce?.cancel();
+        _hutDebounce = Timer(
+          const Duration(milliseconds: 800),
+          () => _fetchHuts(bounds),
         );
       }
     }
@@ -341,6 +368,108 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         setState(() => _trailLoading = false);
       }
     }
+  }
+
+  Future<void> _fetchHuts(LatLngBounds bounds) async {
+    if (!_hutLayer || !mounted) return;
+    final gen = ++_hutGeneration;
+    setState(() {
+      _hutLoading = true;
+      _hutError = null;
+    });
+    try {
+      final latPad = (bounds.north - bounds.south).abs() * 0.15;
+      final lonPad = (bounds.east - bounds.west).abs() * 0.15;
+      final fetched = await HutService().fetchInBounds(
+        bounds.south - latPad,
+        bounds.west - lonPad,
+        bounds.north + latPad,
+        bounds.east + lonPad,
+      );
+      if (!mounted || gen != _hutGeneration) return;
+      setState(() {
+        _huts = fetched;
+        _hutFetchedBounds = LatLngBounds(
+          LatLng(bounds.south - latPad, bounds.west - lonPad),
+          LatLng(bounds.north + latPad, bounds.east + lonPad),
+        );
+      });
+    } on ServiceException catch (e) {
+      if (!mounted || gen != _hutGeneration) return;
+      setState(() => _hutError = e.message);
+    } catch (_) {
+      if (mounted && gen == _hutGeneration) {
+        setState(() => _hutError = 'Hytter kunne ikke leses. Prøv igjen.');
+      }
+    } finally {
+      if (mounted && gen == _hutGeneration) {
+        setState(() => _hutLoading = false);
+      }
+    }
+  }
+
+  void _showHut(TouristHut hut) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hut.name,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                [
+                  hut.kindLabel,
+                  if (hut.elevation != null) '${hut.elevation!.round()} moh',
+                  if (hut.operator.isNotEmpty) hut.operator,
+                  if (hut.capacity.isNotEmpty) '${hut.capacity} senger',
+                ].join(' · '),
+              ),
+              if (hut.openingHours.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('Åpent: ${hut.openingHours}'),
+              ],
+              const SizedBox(height: 8),
+              const Text(
+                'Fra OpenStreetMap. Betjent/ubetjent følger kart-taggen, ikke en DNT-bekreftelse. Sjekk åpningstid før du drar.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _useHutOvernight(hut);
+                  },
+                  icon: const Icon(Icons.bed),
+                  label: const Text('Bruk som overnatting'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _useHutOvernight(TouristHut hut) {
+    if (!_hasType(WaypointType.start)) {
+      nkToast(context, 'Sett startpunkt først, så kan hytta bli overnatting.');
+      return;
+    }
+    setState(() {
+      _insertWaypoint(hut.point, name: hut.name, type: WaypointType.overnight);
+      _routeDirty = true;
+    });
+    nkToast(context, '«${hut.name}» er lagt inn som overnatting. Beregn ruten på nytt.');
   }
 
   Color _trailColor(TrailType type) => switch (type) {
@@ -909,6 +1038,20 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 ? 13
                 : (_anchors.isNotEmpty ? 11 : 7),
             onTap: _onMapTap,
+            onMapReady: () {
+              if (!mounted) return;
+              final cam = _mapCtrl.camera;
+              _mapZoom = cam.zoom;
+              setState(() => _hutLayer = true);
+              // A country overview is too wide for the hut register.
+              // Move in once so the cabins are on screen without a
+              // separate tap. Later zoom-outs stay where the user put them.
+              if (cam.zoom < 10) {
+                _mapCtrl.move(cam.center, 11);
+              } else {
+                _onCameraMoved(cam, false);
+              }
+            },
             onPositionChanged: _onCameraMoved,
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -972,13 +1115,17 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
             if (_catalogLayer)
               MarkerLayer(
                 markers: [
-                  for (final e in context.watch<AppState>().catalog)
+                  // Select only the catalog list — packing/weather
+                  // updates must not rebuild every map marker.
+                  for (final e in context.select<AppState, List<CatalogTrip>>(
+                    (s) => s.catalog,
+                  ))
                     // Reported tours stay off the map until reviewed.
                     if (!e.hidden && e.route.start != null)
                       Marker(
                         point: e.route.start!,
-                        width: 160,
-                        height: 34,
+                        width: 180,
+                        height: 48,
                         child: GestureDetector(
                           onTap: () => _showCatalogEntry(e),
                           child: _CatalogPill(
@@ -1040,6 +1187,39 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       ),
                     ),
                   ),
+                if (_hutLayer && (_mapZoom ?? 0) >= 10)
+                  for (final hut in _huts)
+                    Marker(
+                      point: hut.point,
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      child: GestureDetector(
+                        onTap: () => _showHut(hut),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: hut.kind == HutKind.staffed
+                                  ? NkColors.primaryBlue
+                                  : const Color(0xFF6B4F2A),
+                              width: 2,
+                            ),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black26, blurRadius: 3),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.cabin,
+                            size: 20,
+                            color: hut.kind == HutKind.staffed
+                                ? NkColors.primaryBlue
+                                : const Color(0xFF6B4F2A),
+                          ),
+                        ),
+                      ),
+                    ),
                 if (_userLatLng != null)
                   Marker(
                     point: _userLatLng!,
@@ -1071,9 +1251,18 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   const TextSourceAttribution(
                     'Bratthet: © NVE · veiledende, erstatter ikke skredvarsel',
                   ),
+                if (_hutLayer)
+                  const TextSourceAttribution(
+                    'Turisthytter: © OpenStreetMap contributors (ODbL)',
+                  ),
               ],
             ),
           ],
+        ),
+        Positioned(
+          left: 10,
+          top: _trailLayer ? 168 : 72,
+          child: _hutChip(),
         ),
         if (_trailLayer)
           Positioned(
@@ -1182,6 +1371,20 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                           ),
                           onTap: () => _usePlace(p),
                         ),
+                      if (_results.any((p) => p.source == 'Kartverket'))
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Stedsnavn: © Kartverket',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: NkColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -1279,6 +1482,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       }
                     } else if (v == 'ski') {
                       setState(() => _mapSettings.skiOverride = !_skiOverlay);
+                    } else if (v == 'hytter') {
+                      _toggleHutLayer();
                     } else if (v == 'trails') {
                       setState(() {
                         final on = !_trailLayer;
@@ -1350,6 +1555,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       child: const Text('Bratthet (NVE) · skredterreng'),
                     ),
                     CheckedPopupMenuItem(
+                      value: 'hytter',
+                      checked: _hutLayer,
+                      child: const Text('Turisthytter · OpenStreetMap'),
+                    ),
+                    CheckedPopupMenuItem(
                       value: 'delte',
                       checked: _catalogLayer,
                       child: const Text('Delte turer · Lett/Middels/Krevende'),
@@ -1365,6 +1575,14 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 6),
+                _mapButton(
+                  Icons.cabin,
+                  _toggleHutLayer,
+                  tooltip: _hutLayer ? 'Skjul turisthytter' : 'Vis turisthytter',
+                  active: _hutLayer,
+                  label: 'Hytter',
                 ),
                 const SizedBox(height: 6),
                 _mapButton(
@@ -1528,11 +1746,97 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
     );
   }
 
+  String get _hutChipText {
+    if (!_hutLayer) return 'Vis hytter';
+    if (_hutLoading) return 'Henter hytter …';
+    if (_hutError != null) return 'Prøv hytter igjen';
+    if ((_mapZoom ?? 0) < 10) return 'Zoom inn for hytter';
+    if (_huts.isEmpty) return 'Ingen hytter her';
+    return '${_huts.length} hytter';
+  }
+
+  void _onHutChip() {
+    if (!_hutLayer || (_mapZoom ?? 0) < 10) {
+      if (_hutLayer && (_mapZoom ?? 0) < 10) {
+        _mapCtrl.move(_mapCtrl.camera.center, 11);
+        return;
+      }
+      _toggleHutLayer();
+      return;
+    }
+    if (_hutError != null || _huts.isEmpty) {
+      _fetchHuts(_mapCtrl.camera.visibleBounds);
+    }
+  }
+
+  Widget _hutChip() {
+    final quiet = _hutLayer && !_hutLoading && _hutError == null && (_mapZoom ?? 0) >= 10;
+    return Material(
+      elevation: 3,
+      color: quiet ? Colors.white : NkColors.primaryBlue,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _onHutChip,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cabin,
+                size: 18,
+                color: quiet ? NkColors.primaryBlue : Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _hutChipText,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: quiet ? NkColors.primaryBlue : Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggleHutLayer() {
+    final turningOn = !_hutLayer;
+    setState(() {
+      _hutLayer = turningOn;
+      if (!turningOn) {
+        _huts = [];
+        _hutFetchedBounds = null;
+        _hutError = null;
+        _hutDebounce?.cancel();
+      }
+    });
+    if (!turningOn) return;
+    _hutDebounce?.cancel();
+    _hutDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      if (_mapCtrl.camera.zoom < 10) {
+        _mapCtrl.move(_mapCtrl.camera.center, 11);
+        nkToast(
+          context,
+          'Zoomet inn – turisthytter hentes for kartutsnittet.',
+        );
+      } else {
+        _onCameraMoved(_mapCtrl.camera, false);
+      }
+    });
+  }
+
   Widget _mapButton(
     IconData icon,
     VoidCallback onTap, {
     required String tooltip,
     bool active = false,
+    String? label,
   }) {
     return Semantics(
       button: true,
@@ -1550,8 +1854,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
           child: Tooltip(
             message: tooltip,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-              padding: const EdgeInsets.all(8),
+              constraints: BoxConstraints(
+                minWidth: 48,
+                minHeight: label == null ? 48 : 56,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
@@ -1559,7 +1866,21 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                   width: active ? 1.5 : 1,
                 ),
               ),
-              child: Icon(icon, size: 20, color: NkColors.primaryBlue),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 20, color: NkColors.primaryBlue),
+                  if (label != null)
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: NkColors.primaryBlue,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2097,10 +2418,10 @@ class _CatalogPill extends StatelessWidget {
     final color = difficultyColor(entry.difficulty);
     return Align(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected ? NkColors.primaryBlue : color,
             width: selected ? 2 : 1,
@@ -2111,26 +2432,26 @@ class _CatalogPill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 8,
-              height: 8,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(shape: BoxShape.circle, color: color),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 6),
             Flexible(
               child: Text(
                 entry.name.isEmpty ? 'Delt tur' : entry.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             Text(
               entry.difficulty.gradeLabel,
-              style: TextStyle(fontSize: 10, color: NkColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
             ),
           ],
         ),
@@ -2146,16 +2467,21 @@ Marker _marker(Waypoint w, {bool moving = false, VoidCallback? onLongPress}) {
     WaypointType.overnight => (Icons.bed, NkColors.primaryBlue),
     WaypointType.waypoint => (Icons.circle, NkColors.warningAmber),
   };
+  // Outdoor-sized hit target: gloves / on-the-move taps.
   return Marker(
     point: w.latLng,
-    width: 34,
-    height: 40,
+    width: 52,
+    height: 56,
+    alignment: Alignment.topCenter,
     child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onLongPress: onLongPress,
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(3),
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
@@ -2163,8 +2489,11 @@ Marker _marker(Waypoint w, {bool moving = false, VoidCallback? onLongPress}) {
                 color: moving ? NkColors.warningAmber : Colors.white,
                 width: moving ? 3 : 2,
               ),
+              boxShadow: const [
+                BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 1)),
+              ],
             ),
-            child: Icon(icon, size: 12, color: Colors.white),
+            child: Icon(icon, size: 22, color: Colors.white),
           ),
         ],
       ),

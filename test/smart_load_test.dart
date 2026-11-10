@@ -81,11 +81,27 @@ void main() {
   });
 
   group('Endringer etter nytt værvarsel', () {
-    const dry = (rain: false, strongWind: false, cold: false, minTemp: 8.0);
+    const dry = (
+      rain: false,
+      heavyRain: false,
+      strongWind: false,
+      storm: false,
+      cold: false,
+      minTemp: 8.0,
+      minTempEstimated: false,
+    );
     test('regn, vind og kulde gir råd om hva som bør sjekkes', () {
       final change = PackingChange.diff(
         before: dry,
-        after: (rain: true, strongWind: true, cold: true, minTemp: -2.0),
+        after: (
+          rain: true,
+          heavyRain: false,
+          strongWind: true,
+          storm: false,
+          cold: true,
+          minTemp: -2.0,
+          minTempEstimated: false,
+        ),
         oldList: [_item('Solkrem', PackingCategory.personal, packed: true)],
         newList: [_item('Regnjakke', PackingCategory.clothing)],
       );

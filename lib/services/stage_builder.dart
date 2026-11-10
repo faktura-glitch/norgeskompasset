@@ -74,5 +74,6 @@ abstract final class StageBuilder {
     route.totalAscent = total.ascent;
     route.totalDescent = total.descent;
     route.highestPoint = total.highest;
+    route.maxSlopeDegrees = steepestGradeDegrees(route.points);
   }
 }

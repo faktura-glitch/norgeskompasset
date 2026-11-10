@@ -392,17 +392,16 @@ class TripRepository {
   CollectionReference<Map<String, dynamic>>? get _shared =>
       _db?.collection('sharedTrips');
 
-  /// Publishes a snapshot of [trip] under a short share code and
-  /// returns the code. The published copy is the shared *plan* —
-  /// personal data (GPS track log, review) is stripped before upload.
-  /// Returns null when signed out/offline.
+  /// Publishes the plan of [trip] under a short share code and returns
+  /// the code. Packing, meals, weather and the track are not uploaded.
+  /// Returns null when signed out or offline.
   Future<String?> publishTrip(Trip trip) async {
     final shared = _shared;
     if (shared == null || _uid == null) return null;
-    final code = trip.shareCode ?? _newShareCode();
-    final j = trip.toJson()
-      ..['trackLog'] = <dynamic>[]
-      ..['review'] = null;
+    final previous = trip.shareCode;
+    final code = previous ?? _newShareCode();
+    trip.shareCode = code;
+    final j = trip.toSharedPlanJson();
     try {
       // Serialize with trip sync so Firestore's native desktop plugin never
       // sees two overlapping writes from this repository.
@@ -414,9 +413,9 @@ class TripRepository {
           'updatedAt': trip.updatedAt.toIso8601String(),
         }),
       );
-      trip.shareCode = code;
       return code;
     } catch (_) {
+      trip.shareCode = previous;
       return null;
     }
   }
@@ -479,7 +478,22 @@ class TripRepository {
       final doc = entry.id.isEmpty ? catalog.doc() : catalog.doc(entry.id);
       entry.id = doc.id;
       entry.ownerUid = _uid!;
-      await _serialize(() => doc.set(entry.toJson()));
+      await _serialize(() async {
+        final existing = await doc.get();
+        if (existing.exists && existing.data()?['owner'] != _uid) {
+          throw StateError('not owner');
+        }
+        final json = entry.toJson();
+        final previous = existing.data();
+        if (previous != null) {
+          final reported = previous['reportedBy'];
+          if (reported is List) json['reportedBy'] = reported;
+          if (entry.description.isEmpty) {
+            json['description'] = previous['description'] ?? '';
+          }
+        }
+        await doc.set(json);
+      });
       return doc.id;
     } catch (_) {
       return null;

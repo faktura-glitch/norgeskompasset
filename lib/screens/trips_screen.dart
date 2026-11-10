@@ -247,9 +247,9 @@ class _TripsScreenState extends State<TripsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Skriv inn turkoden du har fått fra den som planlegger turen. '
-              'Du får rute, datoer og planen – og lager din egen pakkeliste '
-              'og matplan ut fra din profil og ditt utstyr. Dette er en egen kopi, ikke en løpende felles plan.',
+              'Skriv inn turkoden. Første gang får du rute, datoer og planen, '
+              'og lager din egen pakkeliste. Har du turen fra før, oppdateres '
+              'rute og datoer. Pakkelisten blir stående.',
             ),
             const SizedBox(height: 12),
             TextField(
@@ -279,15 +279,17 @@ class _TripsScreenState extends State<TripsScreen> {
     );
     if (code == null || code.isEmpty || !context.mounted) return;
     setState(() => _joining = true);
-    final trip = await state.joinSharedTrip(code);
+    final result = await state.joinSharedTrip(code);
     if (!context.mounted) return;
     setState(() => _joining = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          trip != null
-              ? '«${trip.name}» er lagt til i turene dine'
-              : 'Fant ingen delt tur med koden «$code» — sjekk at den er riktig og at du er på nett.',
+          result == null
+              ? 'Fant ingen delt tur med koden «$code» — sjekk at den er riktig og at du er på nett.'
+              : result.updated
+              ? '«${result.trip.name}» er oppdatert. Pakkelisten er beholdt.'
+              : '«${result.trip.name}» er lagt til i turene dine',
         ),
       ),
     );
@@ -492,6 +494,14 @@ class _TripTile extends StatelessWidget {
                         if (context.mounted) nkToast(context, 'Tur kopiert');
                       case 'publish':
                         await _publishCatalog(context);
+                      case 'unpublish':
+                        final error = await state.unpublishCatalog(trip);
+                        if (context.mounted) {
+                          nkToast(
+                            context,
+                            error ?? 'Turen er fjernet fra katalogen.',
+                          );
+                        }
                       case 'review':
                         state.selectTrip(trip.id);
                         Navigator.push(
@@ -520,9 +530,18 @@ class _TripTile extends StatelessWidget {
                         child: Text('Slutt å dele'),
                       ),
                     if (trip.route?.hasRoute == true)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'publish',
-                        child: Text('Publiser i turkatalogen'),
+                        child: Text(
+                          trip.catalogId == null
+                              ? 'Publiser i turkatalogen'
+                              : 'Oppdater i turkatalogen',
+                        ),
+                      ),
+                    if (trip.catalogId != null)
+                      const PopupMenuItem(
+                        value: 'unpublish',
+                        child: Text('Fjern fra turkatalogen'),
                       ),
                     const PopupMenuDivider(),
                     const PopupMenuItem(
@@ -600,8 +619,9 @@ class _TripTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Gi denne koden til de andre på turen — de henter turen '
-              'inn via «Bli med på delt tur» på Turer-siden.',
+              'Gi koden til de andre. De henter turen under «Bli med på delt tur». '
+              'Deler du på nytt, oppdateres rute og datoer hos dem som allerede '
+              'har den. Pakkelisten deres blir stående.',
             ),
             const SizedBox(height: 16),
             SelectableText(
@@ -611,11 +631,6 @@ class _TripTile extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 letterSpacing: 4,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deling på nytt oppdaterer kopiene.',
-              style: TextStyle(fontSize: 11, color: NkColors.textSecondary),
             ),
           ],
         ),
@@ -641,52 +656,107 @@ class _TripTile extends StatelessWidget {
   /// discover it in the map's explore mode.
   Future<void> _publishCatalog(BuildContext context) async {
     final state = context.read<AppState>();
+    final updating = trip.catalogId != null;
     final descCtrl = TextEditingController();
+    final regionCtrl = TextEditingController();
+    final seasons = <TripSeason>{trip.season};
+    final published = state.catalog
+        .where((e) => e.id == trip.catalogId)
+        .firstOrNull;
+    if (published != null) {
+      regionCtrl.text = published.region;
+      descCtrl.text = published.description;
+      if (published.seasons.isNotEmpty) {
+        seasons
+          ..clear()
+          ..addAll(published.seasons);
+      }
+    }
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Publiser i turkatalogen'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Ruten blir synlig for alle innloggede brukere under '
-              '«Finn tur» under Turer. Pakkeliste, spor og evaluering deles ikke.',
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text(updating ? 'Oppdater i turkatalogen' : 'Publiser i turkatalogen'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ruten blir synlig for alle innloggede under Finn tur. '
+                  'Pakkeliste, spor og evaluering deles ikke. '
+                  'Samme tur oppdaterer det innlegget du allerede har.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: regionCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Område',
+                    hintText: 'F.eks. Jotunheimen',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('Sesonger'),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final season in TripSeason.values)
+                      FilterChip(
+                        label: Text(season.label),
+                        selected: seasons.contains(season),
+                        onSelected: (on) => update(() {
+                          if (on) {
+                            seasons.add(season);
+                          } else if (seasons.length > 1) {
+                            seasons.remove(season);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Kort beskrivelse (valgfri)',
+                    hintText: updating
+                        ? 'Tomt felt beholder forrige tekst'
+                        : 'F.eks. klassisk topptur med utsikt over…',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Kort beskrivelse (valgfri)',
-                hintText: 'F.eks. klassisk topptur med utsikt over…',
-              ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Avbryt'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(updating ? 'Oppdater' : 'Publiser'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Avbryt'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Publiser'),
-          ),
-        ],
       ),
     );
     if (ok != true || !context.mounted) return;
     final success = await state.publishTripToCatalog(
       trip,
       description: descCtrl.text.trim(),
+      region: regionCtrl.text.trim(),
+      seasons: seasons.toList(),
     );
     if (!context.mounted) return;
+    final name = trip.name.isEmpty ? 'Turen' : trip.name;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           success
-              ? '«${trip.name.isEmpty ? 'Turen' : trip.name}» er publisert i katalogen'
+              ? updating
+                    ? '«$name» er oppdatert i katalogen'
+                    : '«$name» er publisert i katalogen'
               : 'Kunne ikke publisere — sjekk at du er innlogget og på nett.',
         ),
       ),

@@ -381,18 +381,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                   label: const Text('Fortsett med Apple'),
                                 ),
                               ],
-                              const SizedBox(height: 8),
-                              TextButton(
+                              const SizedBox(height: 14),
+                              OutlinedButton.icon(
                                 onPressed: _busy
                                     ? null
                                     : () => context
                                           .read<AppState>()
                                           .useLocalMode(true),
-                                child: const Text('Fortsett lokalt uten konto'),
+                                icon: const Icon(Icons.phonelink_off),
+                                label: const Text('Bruk uten konto'),
                               ),
+                              const SizedBox(height: 8),
                               const Text(
-                                'Lokal modus bruker turene på denne enheten. '
-                                'Innlogging kreves for sky, turkoder og publisering.',
+                                'Virker uten nett. Turene lagres på denne enheten. '
+                                'Sky, turkoder og publisering krever innlogging.',
+                                style: TextStyle(fontSize: 13),
                               ),
                               TextButton(
                                 onPressed: _busy

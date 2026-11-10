@@ -7,7 +7,11 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NorgesKompasset trenger posisjonen din for å vise hvor du er i forhold til planlagt rute under turen.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>NorgesKompasset bruker posisjonen din til spor-logging og avviksvarsling når turmodus er aktiv.</string>
+	<string>NorgesKompasset bruker posisjonen din til spor-logging og avviksvarsling når turmodus er aktiv, også med skjermen av.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

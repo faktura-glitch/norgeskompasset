@@ -81,6 +81,32 @@ List<double> cumulativeDistances(List<RoutePoint> points) {
   return (ascent: ascent, descent: descent, highest: highest);
 }
 
+/// Steepest local grade in degrees, from consecutive elevation samples.
+/// Segments shorter than 8 m are noise. Segments longer than
+/// [maxSpanMeters] are an average over a gap, not a local slope, and
+/// are skipped so a sparse profile cannot look artificially gentle
+/// or invent a cliff. Null when there are not two usable samples.
+/// This is the elevation profile, not NVE's slope raster.
+double? steepestGradeDegrees(
+  List<RoutePoint> points, {
+  double maxSpanMeters = 200,
+}) {
+  double? maxDeg;
+  RoutePoint? prev;
+  for (final p in points) {
+    if (p.elevation == null) continue;
+    final last = prev;
+    prev = p;
+    if (last == null) continue;
+    final run = metersBetween(last.latLng, p.latLng);
+    if (run < 8 || run > maxSpanMeters) continue;
+    final rise = (p.elevation! - last.elevation!).abs();
+    final deg = atan(rise / run) * 180 / pi;
+    if (maxDeg == null || deg > maxDeg) maxDeg = deg;
+  }
+  return maxDeg;
+}
+
 /// Estimated hiking time in minutes using Naismith's rule
 /// (5 km/h + 10 min per 100 m ascent), adjusted for descent steepness
 /// and the user's pace. This is an estimate, not a guarantee.

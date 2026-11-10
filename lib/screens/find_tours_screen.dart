@@ -24,6 +24,8 @@ class FindToursScreen extends StatefulWidget {
 
 class _FindToursScreenState extends State<FindToursScreen> {
   String _query = '';
+  TripSeason? _season;
+  String _region = '';
   bool _loading = false;
   bool _saving = false;
   String? _error;
@@ -356,11 +358,21 @@ class _FindToursScreenState extends State<FindToursScreen> {
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final query = _query.trim().toLowerCase();
-    final entries = state.catalog.where(
-      (entry) => '${entry.name} ${entry.region} ${entry.description}'
+    final regions = {
+      for (final entry in state.catalog)
+        if (entry.region.trim().isNotEmpty) entry.region.trim(),
+    }.toList()..sort();
+    final entries = state.catalog.where((entry) {
+      if (!entry.matches(_season, null)) return false;
+      if (_region.isNotEmpty &&
+          entry.region.trim().toLowerCase() != _region.toLowerCase()) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return '${entry.name} ${entry.region} ${entry.description}'
           .toLowerCase()
-          .contains(query),
-    );
+          .contains(query);
+    });
     return Scaffold(
       appBar: AppBar(title: const Text('Turer delt av brukere')),
       body: ListView(
@@ -372,6 +384,36 @@ class _FindToursScreenState extends State<FindToursScreen> {
               prefixIcon: Icon(Icons.search),
             ),
             onChanged: (value) => setState(() => _query = value),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilterChip(
+                label: const Text('Alle sesonger'),
+                selected: _season == null,
+                onSelected: (_) => setState(() => _season = null),
+              ),
+              for (final season in TripSeason.values)
+                FilterChip(
+                  label: Text(season.label),
+                  selected: _season == season,
+                  onSelected: (on) =>
+                      setState(() => _season = on ? season : null),
+                ),
+              if (regions.isNotEmpty)
+                DropdownButton<String>(
+                  value: regions.contains(_region) ? _region : '',
+                  items: [
+                    const DropdownMenuItem(value: '', child: Text('Alle områder')),
+                    for (final region in regions)
+                      DropdownMenuItem(value: region, child: Text(region)),
+                  ],
+                  onChanged: (value) => setState(() => _region = value ?? ''),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           if (state.localOnly)

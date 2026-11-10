@@ -917,7 +917,10 @@ void main() {
       );
       expect(c.hasData, isTrue);
       expect(c.rainExpected, isTrue);
+      expect(c.heavyRain, isTrue);
+      expect(c.peakPrecipMm, 2);
       expect(c.strongWind, isTrue);
+      expect(c.storm, isFalse);
       expect(c.minTemp, lessThanOrEqualTo(12));
     });
 

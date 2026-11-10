@@ -25,6 +25,14 @@ class GeolocatorTrackingSource implements TrackingLocationSource {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
+    // iOS: a second request can upgrade When-In-Use → Always so
+    // tracking survives a locked screen (requires Info.plist
+    // NSLocationAlwaysAndWhenInUseUsageDescription + UIBackgroundModes).
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS &&
+        permission == LocationPermission.whileInUse) {
+      permission = await Geolocator.requestPermission();
+    }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       throw StateError('Gi posisjonstilgang i telefonens innstillinger.');
@@ -54,6 +62,9 @@ class GeolocatorTrackingSource implements TrackingLocationSource {
         accuracy: LocationAccuracy.high,
         activityType: ActivityType.fitness,
         distanceFilter: 5,
+        allowBackgroundLocationUpdates: true,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
       );
     } else {
       settings = const LocationSettings(
@@ -89,6 +100,15 @@ class TrackingController extends ChangeNotifier {
   static const offRouteThresholdMeters = 80.0;
   static const _alertCooldown = Duration(minutes: 5);
 
+  /// Fixes worse than this are shown on the map but not written to
+  /// the track log — forest multipath would otherwise scribble noise.
+  static const maxRecordAccuracyMeters = 50.0;
+
+  /// Brief GPS dropouts are common outdoors. Fail only after several
+  /// consecutive stream errors; meanwhile keep trying.
+  static const _maxStreamFailures = 3;
+  static const _resubscribeDelay = Duration(seconds: 2);
+
   TrackingPhase phase = TrackingPhase.idle;
   String? tripId;
   Position? position;
@@ -100,6 +120,7 @@ class TrackingController extends ChangeNotifier {
   StreamSubscription<Position>? _subscription;
   Future<void> _writes = Future.value();
   int _generation = 0;
+  int _streamFailures = 0;
   bool _disposed = false;
   bool get isActive => phase == TrackingPhase.active;
   bool get isBusy =>
@@ -118,6 +139,7 @@ class TrackingController extends ChangeNotifier {
     tripId = id;
     phase = TrackingPhase.starting;
     error = null;
+    _streamFailures = 0;
     _offRouteCount = 0;
     offRoute = false;
     deviationMeters = null;
@@ -131,11 +153,27 @@ class TrackingController extends ChangeNotifier {
       } catch (_) {}
       if (!_valid(generation)) return;
       phase = TrackingPhase.active;
-      _subscription = source.positions().listen(
-        (next) {
-          if (!_valid(generation) || !isActive) return;
-          position = next;
-          _updateDeviation(next);
+      _attachStream(id, generation);
+      _notify();
+    } catch (e) {
+      if (_valid(generation)) _fail('Kunne ikke starte GPS-sporing: $e');
+    }
+  }
+
+  void _attachStream(String id, int generation) {
+    unawaited(_subscription?.cancel());
+    _subscription = source.positions().listen(
+      (next) {
+        if (!_valid(generation) || !isActive) return;
+        position = next;
+        _streamFailures = 0;
+        if (error != null) error = null;
+        _updateDeviation(next);
+        final usable =
+            next.accuracy.isFinite &&
+            next.accuracy > 0 &&
+            next.accuracy <= maxRecordAccuracyMeters;
+        if (usable) {
           _writes = _writes
               .then((_) async {
                 if (!_disposed) await onPosition(id, next);
@@ -148,23 +186,38 @@ class TrackingController extends ChangeNotifier {
                   _fail('Kunne ikke lagre sporet. Sporing er stoppet.');
                 }
               });
-          _notify();
-        },
-        onError: (Object e) {
-          if (_valid(generation)) {
-            _fail('GPS-strømmen er avbrutt. Kontroller GPS og start på nytt.');
-          }
-        },
-        onDone: () {
-          if (_valid(generation)) {
-            _fail('GPS-strømmen ble avsluttet. Start sporing på nytt.');
-          }
-        },
-      );
-      _notify();
-    } catch (e) {
-      if (_valid(generation)) _fail('Kunne ikke starte GPS-sporing: $e');
-    }
+        }
+        _notify();
+      },
+      onError: (Object e) {
+        if (!_valid(generation) || !isActive) return;
+        _streamFailures++;
+        if (_streamFailures >= _maxStreamFailures) {
+          _fail('GPS-strømmen er avbrutt. Kontroller GPS og start på nytt.');
+          return;
+        }
+        error = 'Søker etter GPS-signal…';
+        _notify();
+        unawaited(_resubscribe(id, generation));
+      },
+      onDone: () {
+        if (!_valid(generation) || !isActive) return;
+        _streamFailures++;
+        if (_streamFailures >= _maxStreamFailures) {
+          _fail('GPS-strømmen ble avsluttet. Start sporing på nytt.');
+          return;
+        }
+        error = 'Søker etter GPS-signal…';
+        _notify();
+        unawaited(_resubscribe(id, generation));
+      },
+    );
+  }
+
+  Future<void> _resubscribe(String id, int generation) async {
+    await Future<void>.delayed(_resubscribeDelay);
+    if (!_valid(generation) || !isActive) return;
+    _attachStream(id, generation);
   }
 
   /// Off-route detection lives here — not in the UI — so the alert

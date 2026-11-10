@@ -94,10 +94,19 @@ class _HikingScreenState extends State<HikingScreen> {
         if (!mounted || h == null) return;
         // Low-pass the bearing — raw magnetometer jitters, and
         // rotating the map per tick would make it flutter.
-        _deviceHeading = _deviceHeading == null
+        final previous = _deviceHeading;
+        _deviceHeading = previous == null
             ? h
-            : _lerpAngle(_deviceHeading!, h, 0.25);
-        _compassAccurate = (e.accuracy ?? 30) < 30;
+            : _lerpAngle(previous, h, 0.25);
+        final accurate = (e.accuracy ?? 30) < 30;
+        final accuracyChanged = _compassAccurate != accurate;
+        _compassAccurate = accurate;
+        var headingMoved = previous == null;
+        if (previous != null) {
+          final turn =
+              ((_deviceHeading! - previous + 540) % 360) - 180;
+          headingMoved = turn.abs() > 5;
+        }
         if (_headingUp && _showMap && _mapReady) {
           final diff = ((_deviceHeading! - _mapHeading + 540) % 360) - 180;
           // Re-rotate only past 5° drift — the map snaps to the
@@ -105,9 +114,14 @@ class _HikingScreenState extends State<HikingScreen> {
           if (diff.abs() > 5) {
             _mapHeading = _deviceHeading!;
             _mapCtrl.rotate(_mapHeading);
+            headingMoved = true;
           }
         }
-        setState(() {});
+        // Skip per-tick rebuilds; refresh when the cone or accuracy
+        // feedback actually changes for the user.
+        if (accuracyChanged || (headingMoved && _showMap)) {
+          setState(() {});
+        }
       }, onError: (_) {});
     } catch (_) {}
   }
@@ -377,6 +391,14 @@ class _HikingScreenState extends State<HikingScreen> {
                         ],
                       ),
                     ),
+                    if (_tracking)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 6),
+                        child: Text(
+                          'Høy GPS-nøyaktighet bruker mer batteri. Sporingen fortsetter med skjermen av.',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ),
                     if (_gpsMessage != null)
                       Container(
                         width: double.infinity,
@@ -481,7 +503,7 @@ class _HikingScreenState extends State<HikingScreen> {
                     if (_showMap)
                       _mapExpanded
                           ? Expanded(child: _buildMap(trip))
-                          : SizedBox(height: 240, child: _buildMap(trip)),
+                          : SizedBox(height: 320, child: _buildMap(trip)),
                     if (!(_showMap && _mapExpanded))
                       Expanded(
                         child: SingleChildScrollView(
@@ -497,59 +519,71 @@ class _HikingScreenState extends State<HikingScreen> {
                           ),
                         ),
                       ),
-                    // Quick actions
+                    // Quick actions — two rows so gloves can hit targets.
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Row(
+                      child: Column(
                         children: [
-                          _ActionBtn(
-                            icon: _tracking ? Icons.pause : Icons.play_arrow,
-                            label:
-                                _state.tracking.phase == TrackingPhase.starting
-                                ? 'Pause'
-                                : _tracking
-                                ? 'Pause'
-                                : trip.trackLog.isEmpty
-                                ? 'Start'
-                                : 'Fortsett',
-                            onTap: _toggleTracking,
-                          ),
-                          _ActionBtn(
-                            icon: Icons.cloud_outlined,
-                            label: 'Vær',
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const WeatherScreen(),
+                          Row(
+                            children: [
+                              _ActionBtn(
+                                icon: _tracking
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                                label: _state.tracking.phase ==
+                                        TrackingPhase.starting
+                                    ? 'Starter…'
+                                    : _tracking
+                                    ? 'Pause'
+                                    : trip.trackLog.isEmpty
+                                    ? 'Start spor'
+                                    : 'Fortsett',
+                                onTap: _toggleTracking,
                               ),
-                            ),
-                          ),
-                          _ActionBtn(
-                            icon: Icons.terrain,
-                            label: 'Høyde',
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ElevationScreen(),
+                              _ActionBtn(
+                                icon: Icons.emergency_outlined,
+                                label: 'Nødinfo',
+                                alert: true,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SafetyScreen(
+                                      emergencyFirst: true,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          _ActionBtn(
-                            icon: Icons.emergency_outlined,
-                            label: 'Nødinfo',
-                            alert: true,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const SafetyScreen(emergencyFirst: true),
+                              _ActionBtn(
+                                icon: Icons.close,
+                                label: 'Avslutt',
+                                onTap: () => _confirmExit(trip),
                               ),
-                            ),
+                            ],
                           ),
-                          _ActionBtn(
-                            icon: Icons.close,
-                            label: 'Avslutt',
-                            onTap: () => _confirmExit(trip),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _ActionBtn(
+                                icon: Icons.cloud_outlined,
+                                label: 'Vær',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const WeatherScreen(),
+                                  ),
+                                ),
+                              ),
+                              _ActionBtn(
+                                icon: Icons.terrain,
+                                label: 'Høyde',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ElevationScreen(),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -651,8 +685,8 @@ class _HikingScreenState extends State<HikingScreen> {
                     ),
                   Marker(
                     point: LatLng(pos.latitude, pos.longitude),
-                    width: 20,
-                    height: 20,
+                    width: 28,
+                    height: 28,
                     child: Container(
                       decoration: BoxDecoration(
                         color: _gpsAccurate
@@ -660,6 +694,9 @@ class _HikingScreenState extends State<HikingScreen> {
                             : NkColors.warningAmber,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black45, blurRadius: 4),
+                        ],
                       ),
                     ),
                   ),
@@ -667,14 +704,14 @@ class _HikingScreenState extends State<HikingScreen> {
                 for (final w in route?.waypoints ?? const [])
                   Marker(
                     point: w.latLng,
-                    width: 24,
-                    height: 24,
+                    width: 40,
+                    height: 40,
                     child: Icon(
                       w.type == WaypointType.end ? Icons.flag : Icons.circle,
                       color: w.type == WaypointType.end
                           ? NkColors.dangerRed
                           : NkColors.primaryBlue,
-                      size: 18,
+                      size: 28,
                     ),
                   ),
               ],
@@ -730,22 +767,23 @@ class _HikingScreenState extends State<HikingScreen> {
         // North-up ⇄ heading-up toggle — one-tap, thumb zone.
         Positioned(
           right: 8,
-          bottom: 64,
+          bottom: 72,
           child: Material(
             color: _headingUp ? NkColors.primaryBlue : Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               onTap: _toggleHeadingUp,
               child: Tooltip(
                 message: _headingUp
                     ? 'Kurs opp – trykk for nord opp'
                     : 'Nord opp – trykk for kurs opp',
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
                   child: Icon(
                     _headingUp ? Icons.navigation : Icons.explore_outlined,
-                    size: 20,
+                    size: 26,
                     color: _headingUp ? Colors.white : NkColors.primaryBlue,
                   ),
                 ),
@@ -759,15 +797,16 @@ class _HikingScreenState extends State<HikingScreen> {
           bottom: 8,
           child: Material(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: InkWell(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               onTap: () => setState(() => _mapExpanded = !_mapExpanded),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
+              child: SizedBox(
+                width: 56,
+                height: 56,
                 child: Icon(
                   _mapExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
-                  size: 20,
+                  size: 26,
                   color: NkColors.primaryBlue,
                 ),
               ),
@@ -1186,21 +1225,30 @@ class _ActionBtn extends StatelessWidget {
           color: alert
               ? NkColors.dangerRed
               : Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Column(
-                children: [
-                  Icon(icon, color: Colors.white, size: 22),
-                  const SizedBox(height: 4),
-                  Text(
-                    label,
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 64),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: Colors.white, size: 28),
+                    const SizedBox(height: 6),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

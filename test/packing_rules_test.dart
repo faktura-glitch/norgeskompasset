@@ -1,7 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:norgeskompasset/models/avalanche.dart';
 import 'package:norgeskompasset/models/packing.dart';
+import 'package:norgeskompasset/models/route_models.dart';
+import 'package:norgeskompasset/models/snow.dart';
+import 'package:norgeskompasset/models/stage.dart';
 import 'package:norgeskompasset/models/trip.dart';
+import 'package:norgeskompasset/models/weather.dart';
 import 'package:norgeskompasset/services/packing_engine.dart';
 
 List<PackingItem> _gen(Trip t) => PackingEngine().generate(t);
@@ -154,5 +158,123 @@ void main() {
     expect(engine.conditionsFor(trip, null).withDog, isTrue);
     final restored = Trip.fromJson(trip.toJson());
     expect(restored.withDog, isTrue);
+  });
+
+  Trip _forecasted({
+    required double temp,
+    required double precip,
+    required double wind,
+    required double forecastEle,
+    required double summit,
+  }) {
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day);
+    final trip = Trip(
+      id: 'wx',
+      accommodation: AccommodationType.tent,
+      season: TripSeason.summer,
+      startDate: day,
+      endDate: day,
+      weather: {
+        's1-0': WeatherSnapshot(
+          lat: 61,
+          lon: 8,
+          elevation: forecastEle,
+          retrievedAt: now,
+          hours: [
+            for (var i = 0; i < 30; i++)
+              WeatherHour(
+                time: day.add(Duration(hours: i)),
+                temperature: temp,
+                precipitationMm: i == 14 ? precip : 0,
+                windSpeed: wind,
+              ),
+          ],
+        ),
+      },
+    )
+      ..stages = [
+        Stage(
+          id: 's1',
+          number: 1,
+          date: day,
+          points: [RoutePoint(61, 8, elevation: forecastEle)],
+        ),
+      ]
+      ..route = HikingRoute(
+        points: [
+          RoutePoint(61, 8, elevation: forecastEle),
+          RoutePoint(61.02, 8, elevation: summit),
+        ],
+        highestPoint: summit,
+        distanceMeters: 8000,
+      );
+    return trip;
+  }
+
+  test('heavy rain adds a pack liner and a spare wool layer', () {
+    final wet = _forecasted(
+      temp: 12,
+      precip: 8,
+      wind: 3,
+      forecastEle: 800,
+      summit: 800,
+    );
+    final ids = _ids(wet);
+    expect(ids, containsAll(['packliner', 'wool-spare', 'rainpants']));
+    expect(ids, contains('stove-summer'));
+    expect(ids, isNot(contains('stove-winter')));
+
+    final dry = _tent(TripSeason.summer);
+    expect(_ids(dry), isNot(contains('packliner')));
+    expect(_ids(dry), isNot(contains('wool-spare')));
+  });
+
+  test('summit lapse can switch a summer camp to a winter stove', () {
+    final trip = _forecasted(
+      temp: 3,
+      precip: 0,
+      wind: 2,
+      forecastEle: 500,
+      summit: 1400,
+    );
+    final cond = PackingEngine().conditionsFor(trip, null);
+    // 900 m above the forecast point ≈ 5.9 °C colder.
+    expect(cond.minTempEstimated, isTrue);
+    expect(cond.minTemp!, lessThan(0));
+    final ids = _ids(trip);
+    expect(ids, contains('stove-winter'));
+    expect(ids, isNot(contains('stove-summer')));
+    expect(
+      _gen(trip).firstWhere((i) => i.id == 'stove-winter').reason,
+      contains('estimert'),
+    );
+  });
+
+  test('crampons follow winter or freezing rain, not the calendar alone', () {
+    expect(_ids(_tent(TripSeason.winter)), contains('brodder'));
+    expect(_ids(_tent(TripSeason.spring)), isNot(contains('brodder')));
+    final icy = _forecasted(
+      temp: 0,
+      precip: 2,
+      wind: 3,
+      forecastEle: 600,
+      summit: 600,
+    )..season = TripSeason.spring;
+    expect(_ids(icy), contains('brodder'));
+  });
+
+  test('summer snow on the ground adds gaiters', () {
+    final trip = _tent(TripSeason.summer)
+      ..snow = [
+        SnowSample(
+          lat: 61,
+          lon: 8,
+          depthCm: 25,
+          date: DateTime(2026, 7, 1),
+          retrievedAt: DateTime(2026, 7, 1),
+        ),
+      ];
+    expect(_ids(trip), contains('gaiters'));
   });
 }

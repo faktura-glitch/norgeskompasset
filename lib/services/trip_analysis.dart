@@ -12,7 +12,19 @@ class ConditionsSummary {
   final int hoursWithData;
   final bool freezingTemps;
   final bool rainExpected;
+
+  /// Wettest single hour in the window. A 10 mm hour must not disappear
+  /// inside a low daily average.
+  final double peakPrecipMm;
+
+  /// One hour ≥ 5 mm, or ≥ 15 mm across the window.
+  final bool heavyRain;
+
   final bool strongWind;
+
+  /// Near-gale or worse: sustained ≥ 17.2 m/s or gusts ≥ 25 m/s.
+  /// Distinct from [strongWind] (fresh breeze).
+  final bool storm;
   final bool limitedVisibility;
 
   /// Forecast hours behind [limitedVisibility]: cloud cover above 95 %
@@ -29,7 +41,10 @@ class ConditionsSummary {
     this.hoursWithData = 0,
     this.freezingTemps = false,
     this.rainExpected = false,
+    this.peakPrecipMm = 0,
+    this.heavyRain = false,
     this.strongWind = false,
+    this.storm = false,
     this.limitedVisibility = false,
     this.lowVisHours = 0,
   });
@@ -67,6 +82,7 @@ class TripAnalysis {
 
     double? minT, maxT, maxW, maxG;
     var precip = 0.0;
+    var peakPrecip = 0.0;
     var lowVis = false;
     var lowVisHours = 0;
     for (final entry in byHour.entries) {
@@ -93,7 +109,10 @@ class TripAnalysis {
       }
       if (w != null && (maxW == null || w > maxW)) maxW = w;
       if (g != null && (maxG == null || g > maxG)) maxG = g;
-      if (p != null) precip += p;
+      if (p != null) {
+        precip += p;
+        if (p > peakPrecip) peakPrecip = p;
+      }
       if (c != null && c > 95 && p != null && p > 0) {
         lowVis = true;
         lowVisHours++;
@@ -108,7 +127,10 @@ class TripAnalysis {
       hoursWithData: byHour.length,
       freezingTemps: minT != null && minT <= 0,
       rainExpected: precip >= 1.0,
+      peakPrecipMm: peakPrecip,
+      heavyRain: peakPrecip >= 5 || precip >= 15,
       strongWind: (maxW ?? 0) >= 10.8 || (maxG ?? 0) >= 15,
+      storm: (maxW ?? 0) >= 17.2 || (maxG ?? 0) >= 25,
       limitedVisibility: lowVis,
       lowVisHours: lowVisHours,
     );
@@ -155,6 +177,26 @@ class TripAnalysis {
     final (from, _) = stageWindow(stage, trip);
     final night = DateTime(from.year, from.month, from.day, 21);
     return (night, night.add(const Duration(hours: 9)));
+  }
+
+  /// Null when a fresh forecast covers the trip. Otherwise a short
+  /// explanation that packing is using season, not a weather model.
+  static String? forecastGap(Trip trip) {
+    if (trip.stages.isEmpty && trip.route?.hasRoute != true) return null;
+    final now = DateTime.now();
+    final snaps = trip.weather.values.toList();
+    if (snaps.isEmpty) {
+      return 'Ingen værprognose er hentet. Pakkelisten bruker sesong og turvalg, ikke meldt vær.';
+    }
+    final fresh = snaps.where((s) => forecastIsFresh(s, now)).toList();
+    if (fresh.isEmpty) {
+      return 'Værprognosen er eldre enn 12 timer og brukes ikke. Hent været på nytt før du stoler på regn- og kuldepostene.';
+    }
+    final start = trip.startDate;
+    if (start != null && fresh.every((s) => beyondForecast(s, start))) {
+      return 'Startdatoen ligger utenfor MET sitt varselvindu. Pakkelisten bruker sesong, ikke en prognose.';
+    }
+    return null;
   }
 
   /// Whether a date is beyond a forecast snapshot's coverage.

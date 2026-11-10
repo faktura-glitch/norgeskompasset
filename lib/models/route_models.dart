@@ -125,6 +125,10 @@ class HikingRoute {
   double totalDescent;
   double? highestPoint;
 
+  /// Steepest local grade in degrees, from [steepestGradeDegrees].
+  /// Null until the elevation profile has close samples.
+  double? maxSlopeDegrees;
+
   /// Inclusive index ranges into [points] that are straight-line
   /// segments rather than verified trail sections. Lets the map draw
   /// estimated legs distinctly. Empty for fully trail-routed or
@@ -143,6 +147,7 @@ class HikingRoute {
     this.totalAscent = 0,
     this.totalDescent = 0,
     this.highestPoint,
+    this.maxSlopeDegrees,
     this.straightRanges = const [],
     this.turnIndex,
   });
@@ -270,6 +275,7 @@ class HikingRoute {
     'totalAscent': totalAscent,
     'totalDescent': totalDescent,
     'highestPoint': highestPoint,
+    if (maxSlopeDegrees != null) 'maxSlopeDegrees': maxSlopeDegrees,
     if (turnIndex != null) 'turnIndex': turnIndex,
     if (straightRanges.isNotEmpty)
       'straightRanges': [
@@ -291,6 +297,7 @@ class HikingRoute {
       totalAscent: (j['totalAscent'] as num?)?.toDouble() ?? 0,
       totalDescent: (j['totalDescent'] as num?)?.toDouble() ?? 0,
       highestPoint: (j['highestPoint'] as num?)?.toDouble(),
+      maxSlopeDegrees: (j['maxSlopeDegrees'] as num?)?.toDouble(),
       turnIndex: (j['turnIndex'] as num?)?.toInt(),
       straightRanges: [
         for (final r in j['straightRanges'] as List? ?? [])
@@ -324,6 +331,7 @@ class HikingRoute {
       'asc': totalAscent.round(),
       'desc': totalDescent.round(),
       if (highestPoint != null) 'high': highestPoint!.round(),
+      if (maxSlopeDegrees != null) 'slope': maxSlopeDegrees!.round(),
       if (turnIndex != null) 'turn': turnIndex,
       'pts': [
         for (final p in points)
@@ -358,6 +366,7 @@ class HikingRoute {
       totalAscent: (j['asc'] as num?)?.toDouble() ?? 0,
       totalDescent: (j['desc'] as num?)?.toDouble() ?? 0,
       highestPoint: (j['high'] as num?)?.toDouble(),
+      maxSlopeDegrees: (j['slope'] as num?)?.toDouble(),
       turnIndex: (j['turn'] as num?)?.toInt(),
       straightRanges: [
         for (final r in j['straight'] as List? ?? [])

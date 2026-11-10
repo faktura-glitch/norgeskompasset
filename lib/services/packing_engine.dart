@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 
+import '../core/geo.dart';
 import '../models/gear.dart';
 import '../models/packing.dart';
 import '../models/profile.dart';
@@ -22,8 +23,10 @@ class PackingEngine {
 
   /// Derives the condition context the catalog is filtered against.
   TripConditions _conditions(Trip trip, UserProfile? profile) {
-    var rain = false, cold = false, wind = false;
+    var rain = false, heavyRain = false, cold = false, wind = false;
+    var storm = false;
     double? minTemp;
+    double? forecastEle;
     final now = DateTime.now();
     for (final s in trip.stages) {
       final (from, to) = TripAnalysis.stageWindow(s, trip);
@@ -32,14 +35,40 @@ class PackingEngine {
           .toList();
       final c = TripAnalysis.summarize(fresh, from, to);
       if (c.rainExpected) rain = true;
+      if (c.heavyRain) heavyRain = true;
       if (c.strongWind) wind = true;
+      if (c.storm) storm = true;
       if (c.minTemp != null && (minTemp == null || c.minTemp! < minTemp)) {
         minTemp = c.minTemp;
+      }
+      for (final snapshot in fresh) {
+        final ele = snapshot.elevation;
+        if (ele != null && (forecastEle == null || ele > forecastEle)) {
+          forecastEle = ele;
+        }
       }
       final (nf, nt) = TripAnalysis.nightWindow(s, trip);
       final n = TripAnalysis.summarize(fresh, nf, nt);
       if (n.freezingTemps) cold = true;
+      if (n.heavyRain) heavyRain = true;
+      if (n.storm) storm = true;
+      if (n.minTemp != null && (minTemp == null || n.minTemp! < minTemp)) {
+        minTemp = n.minTemp;
+      }
     }
+    // MET was asked for the sample altitude. The summit can sit well
+    // above that. 0.65 °C / 100 m is the standard lapse — an estimate,
+    // applied only for the gap the forecast did not already cover.
+    var minTempEstimated = false;
+    final high = trip.route?.highestPoint;
+    if (minTemp != null && high != null && forecastEle != null) {
+      final extra = high - forecastEle;
+      if (extra >= 100) {
+        minTemp = minTemp! - 0.65 * (extra / 100);
+        minTempEstimated = true;
+      }
+    }
+    if (minTemp != null && minTemp! <= 0) cold = true;
     // Season is a stronger signal than a 9-day forecast: anything but
     // high summer means cold nights are plausible in the mountains.
     final winter = trip.season == TripSeason.winter;
@@ -81,9 +110,17 @@ class PackingEngine {
       skiStyle: trip.skiStyle,
       snowshoes: trip.snowshoes,
       fishing: trip.fishing,
+      maxSlopeDegrees:
+          trip.route?.maxSlopeDegrees ??
+          (trip.route == null
+              ? null
+              : steepestGradeDegrees(trip.route!.points)),
       minTemp: minTemp,
+      minTempEstimated: minTempEstimated,
       rain: rain,
+      heavyRain: heavyRain,
       strongWind: wind,
+      storm: storm,
       snow: winter || snowOnGround,
       cold: cold || snowOnGround,
       snowDepthCm: snowDepth,

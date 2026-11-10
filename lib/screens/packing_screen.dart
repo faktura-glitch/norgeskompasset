@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -534,6 +535,7 @@ class _PackingScreenState extends State<PackingScreen> {
                   child: Text('Fjernede gjenstander…'),
                 ),
                 PopupMenuItem(value: 'owned', child: Text('Mitt utstyr…')),
+                PopupMenuItem(value: 'copy', child: Text('Kopier liste')),
               ],
             ),
         ],
@@ -590,6 +592,19 @@ class _PackingScreenState extends State<PackingScreen> {
       await showSmartLoadSheet(context, trip);
     } else if (v == 'whatif') {
       await showWhatIfSheet(context, trip);
+    } else if (v == 'copy') {
+      final lines = [
+        if (trip.name.trim().isNotEmpty) trip.name.trim(),
+        for (final i in trip.packingList)
+          '${i.packed ? "[x]" : "[ ]"} ${i.name}'
+          '${i.quantity > 1 ? " × ${i.quantity}" : ""}',
+      ];
+      await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pakkelisten er kopiert.')),
+        );
+      }
     } else if (v == 'optimize') {
       final engine = PackingEngine();
       final notes = engine.describeOptimization(trip);
@@ -854,6 +869,37 @@ class _PackingScreenState extends State<PackingScreen> {
   }
 }
 
+class _ForecastGapNote extends StatelessWidget {
+  const _ForecastGapNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final trip = context.watch<AppState>().currentTrip;
+    final gap = trip == null ? null : TripAnalysis.forecastGap(trip);
+    if (gap == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Material(
+        color: NkColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.cloud_off, size: 20, color: NkColors.warning),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(gap, style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GeneratePrompt extends StatelessWidget {
   final Trip trip;
   const _GeneratePrompt({required this.trip});
@@ -904,6 +950,7 @@ class _GeneratePrompt extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: NkColors.textSecondary),
           ),
           const SizedBox(height: 18),
+          const _ForecastGapNote(),
           FilledButton.icon(
             onPressed: () => context.read<AppState>().generatePackingList(trip),
             icon: const Icon(Icons.auto_awesome),
@@ -991,6 +1038,7 @@ class _PackingBody extends StatelessWidget {
           onSearch: onSearch,
           searchController: searchController,
         ),
+        const _ForecastGapNote(),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: wide ? 28 : 16),
           child: SizedBox(

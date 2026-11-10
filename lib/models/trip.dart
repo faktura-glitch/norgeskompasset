@@ -332,8 +332,12 @@ class Trip {
 
   /// Share code in the sharedTrips collection — set when the trip was
   /// published for others, or when this copy was fetched via a code.
-  /// Lets a fetched copy re-pull the owner's latest version.
+  /// The same code updates this copy's plan instead of creating another.
   String? shareCode;
+
+  /// Id of this trip's entry in the public tour catalog. Republishing
+  /// updates that entry; a copy of the trip starts without one.
+  String? catalogId;
 
   Trip({
     required this.id,
@@ -374,6 +378,7 @@ class Trip {
     DateTime? updatedAt,
     this.lastSharedAt,
     this.shareCode,
+    this.catalogId,
   }) : weather = weather ?? {},
        deletedGearIds = deletedGearIds ?? {},
        createdAt = createdAt ?? DateTime.now(),
@@ -453,7 +458,54 @@ class Trip {
     'updatedAt': updatedAt.toIso8601String(),
     'lastSharedAt': lastSharedAt?.toIso8601String(),
     'shareCode': shareCode,
+    if (catalogId != null) 'catalogId': catalogId,
   };
+
+  /// The plan other people are allowed to receive: route, dates and
+  /// how the trip is done. Packing, meals, weather and the track stay
+  /// on this device.
+  Map<String, dynamic> toSharedPlanJson() => {
+    'id': id,
+    'name': name,
+    'startDate': startDate?.toIso8601String(),
+    'endDate': endDate?.toIso8601String(),
+    'accommodation': accommodation.name,
+    if (accommodation.usesCabin) 'cabinType': cabinType.name,
+    if (accommodation == AccommodationType.cabin && nightCabins.isNotEmpty)
+      'nightCabins': [for (final c in nightCabins) c.name],
+    'season': season.name,
+    'carry': carry.name,
+    'pace': pace.name,
+    'activity': activity.name,
+    'route': route?.toJson(),
+    'stages': stages.map((s) => s.toJson()).toList(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'shareCode': shareCode,
+  };
+
+  /// Copies the shared plan onto this trip. Packing, meals, the track
+  /// and the review stay. Weather and warnings are cleared: they
+  /// belonged to the previous route and date.
+  void applySharedPlan(Trip plan) {
+    if (plan.name.isNotEmpty) name = plan.name;
+    startDate = plan.startDate;
+    endDate = plan.endDate;
+    season = plan.season;
+    accommodation = plan.accommodation;
+    cabinType = plan.cabinType;
+    nightCabins = List.of(plan.nightCabins);
+    activity = plan.activity;
+    carry = plan.carry;
+    pace = plan.pace;
+    route = plan.route;
+    stages = List.of(plan.stages);
+    if (plan.shareCode != null) shareCode = plan.shareCode;
+    weather = {};
+    alerts = [];
+    avalancheWarnings = [];
+    snow = [];
+    updatedAt = DateTime.now();
+  }
 
   factory Trip.fromJson(Map<String, dynamic> j) => Trip(
     id: j['id'] as String,
@@ -535,6 +587,7 @@ class Trip {
         ? DateTime.tryParse(j['lastSharedAt'])
         : null,
     shareCode: j['shareCode'] as String?,
+    catalogId: j['catalogId'] as String?,
   );
 
   static List<CabinType> _cabinList(Object? raw) => [
@@ -590,6 +643,7 @@ class Trip {
     'updated': updatedAt.toIso8601String(),
     if (lastSharedAt != null) 'shared': lastSharedAt!.toIso8601String(),
     if (shareCode != null) 'share': shareCode,
+    if (catalogId != null) 'catalog': catalogId,
   };
 
   /// Rebuilds a trip from a v2 snapshot. Derived data (stages) is
@@ -648,6 +702,7 @@ class Trip {
           : DateTime.now(),
       lastSharedAt: j['shared'] != null ? DateTime.tryParse(j['shared']) : null,
       shareCode: j['share'] as String?,
+      catalogId: j['catalog'] as String?,
     );
     StageBuilder.recompute(trip);
     return trip;

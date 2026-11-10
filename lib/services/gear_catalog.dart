@@ -204,6 +204,16 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     boostOnOvernight: true,
   ),
   GearItem(
+    'wool-spare',
+    'Ekstra ullskift',
+    PackingCategory.clothing,
+    400,
+    perPerson: true,
+    priority: PackingPriority.required,
+    anyWeather: {WeatherFlag.rain, WeatherFlag.cold},
+    reason: 'Tørr ull når det første skiftet blir vått eller natten er kald',
+  ),
+  GearItem(
     'boots',
     'Fottøy – fjellstøvler',
     PackingCategory.clothing,
@@ -349,8 +359,10 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.clothing,
     120,
     perPerson: true,
-    extra: (c) => (c.minTemp ?? -999) >= 15 || c.season == TripSeason.summer,
-    reason: 'Varme og sol varslet eller sommersesong',
+    extra: (c) =>
+        !c.heavyRain &&
+        ((c.minTemp ?? -999) >= 15 || c.season == TripSeason.summer),
+    reason: 'Varme og opphold – solhatt og solbriller',
   ),
   GearItem(
     'gaiters',
@@ -365,7 +377,8 @@ final List<GearItem> gearCatalog = List.unmodifiable([
         c.activity == TripActivity.foot &&
         (c.season == TripSeason.spring ||
             c.season == TripSeason.winter ||
-            c.carry == CarryMode.pulk),
+            c.carry == CarryMode.pulk ||
+            c.snow),
   ),
   GearItem(
     'hivis',
@@ -397,6 +410,17 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     carryModes: {CarryMode.backpack},
     extra: (c) => c.multiDay && c.activity != TripActivity.bike,
     reason: 'Romslig sekk med bæresystem tilpasset flerdagstur',
+  ),
+  GearItem(
+    'packliner',
+    'Vanntett pakkpose til sekk',
+    PackingCategory.additional,
+    80,
+    priority: PackingPriority.required,
+    carryModes: {CarryMode.backpack},
+    heavyRainOnly: true,
+    reason:
+        'Minst én time med mye regn er varslet – sovepose og ull må holdes tørt',
   ),
   GearItem(
     'bikebags',
@@ -476,8 +500,22 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     450,
     perPerson: true,
     activities: {TripActivity.foot},
-    seasons: {TripSeason.winter},
-    reason: 'Isete/skare føre på vinterfottur eller under pulkdrag',
+    extra: (c) =>
+        c.season == TripSeason.winter ||
+        (c.minTemp != null && c.minTemp! <= 1 && c.rain) ||
+        (c.maxSlopeDegrees != null &&
+            c.maxSlopeDegrees! >= 30 &&
+            c.minTemp != null &&
+            c.minTemp! <= 1),
+    reasonFn: (c) =>
+        c.maxSlopeDegrees != null &&
+            c.maxSlopeDegrees! >= 30 &&
+            c.minTemp != null &&
+            c.minTemp! <= 1
+        ? 'Bratteste parti i høydeprofilen er ca. ${c.maxSlopeDegrees!.round()}° '
+              'og det er rundt eller under null. Hellingen er beregnet fra '
+              'høydepunktene, ikke fra NVE sitt bratthetskart.'
+        : 'Isete eller nullføre – brodder på fottur om vinteren, eller når det er meldt kuldegrader og nedbør',
   ),
 
   // ── Ski ─────────────────────────────────────────────────
@@ -546,6 +584,23 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     activities: {TripActivity.ski},
     extra: (c) => c.skiStyle == SkiStyle.touring,
     reason: 'Bratte, harde flanker på topptur',
+  ),
+  GearItem(
+    'iceaxe-steep',
+    'Isøks til bratt terreng',
+    PackingCategory.additional,
+    450,
+    perPerson: true,
+    priority: PackingPriority.required,
+    activities: {TripActivity.foot},
+    extra: (c) =>
+        c.maxSlopeDegrees != null &&
+        c.maxSlopeDegrees! >= 30 &&
+        c.minTemp != null &&
+        c.minTemp! <= 1,
+    reasonFn: (c) =>
+        'Ca. ${c.maxSlopeDegrees!.round()}° i høydeprofilen og temperatur rundt '
+        'eller under null. Dette er et profilanslag, ikke NVE-bratthet.',
   ),
   GearItem(
     'goggles',
@@ -1021,7 +1076,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     priority: PackingPriority.required,
     accommodation: {AccommodationType.tent},
     needsWeather: {WeatherFlag.cold},
-    reason: 'Multifuel virker i sterk kulde der gass svikter',
+    reasonFn: (c) =>
+        'Multifuel virker i sterk kulde der gass svikter'
+        '${c.minTempEstimated && c.minTemp != null ? ' – toppunktet er estimert til ${c.minTemp!.round()} °C (0,65 °C per 100 m over prognosehøyden)' : ''}',
   ),
   GearItem(
     'fuel',
@@ -1119,7 +1176,10 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     150,
     accommodation: {AccommodationType.tent},
     needsWeather: {WeatherFlag.strongWind},
-    reason: 'Kraftig vind varslet – sikre teltet ekstra',
+    priority: PackingPriority.required,
+    reasonFn: (c) => c.storm
+        ? 'Stormkast er varslet – vanlige plugger er for svake'
+        : 'Kraftig vind varslet – sikre teltet ekstra',
   ),
   GearItem(
     'saw',

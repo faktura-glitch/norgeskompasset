@@ -4,9 +4,12 @@ import '../models/packing.dart';
 /// The forecast-driven inputs the packing rules react to.
 typedef WeatherBasis = ({
   bool rain,
+  bool heavyRain,
   bool strongWind,
+  bool storm,
   bool cold,
   double? minTemp,
+  bool minTempEstimated,
 });
 
 /// What a new forecast changed in the packing list. Shown to the user
@@ -33,9 +36,12 @@ class PackingChange {
 
   static WeatherBasis basisOf(TripConditions c) => (
     rain: c.rain,
+    heavyRain: c.heavyRain,
     strongWind: c.strongWind,
+    storm: c.storm,
     cold: c.cold,
     minTemp: c.minTemp,
+    minTempEstimated: c.minTempEstimated,
   );
 
   static PackingChange diff({
@@ -46,12 +52,20 @@ class PackingChange {
     DateTime? at,
   }) {
     final notes = <String>[];
-    if (!before.rain && after.rain) {
+    if (!before.heavyRain && after.heavyRain) {
+      notes.add(
+        'Mye regn meldt – sjekk regntøy, ekstra ull og vanntett pakkpose.',
+      );
+    } else if (!before.rain && after.rain) {
       notes.add('Nedbør meldt – sjekk regntøy og vanntette pakkposer.');
     } else if (before.rain && !after.rain) {
       notes.add('Ikke lenger meldt nedbør – regntøy er likevel lurt å ha med.');
     }
-    if (!before.strongWind && after.strongWind) {
+    if (!before.storm && after.storm) {
+      notes.add(
+        'Stormkast meldt – sjekk at teltet tåler vinden, og ta ekstra barduner.',
+      );
+    } else if (!before.strongWind && after.strongWind) {
       notes.add(
         'Sterk vind meldt – sjekk vindtett lag, og at teltet tåler vind.',
       );
@@ -60,14 +74,15 @@ class PackingChange {
     }
     final b = before.minTemp, a = after.minTemp;
     if (b != null && a != null) {
+      final estimate = after.minTempEstimated ? ' (estimat med høydekorreksjon)' : '';
       if (a <= b - 2) {
         notes.add(
-          'Kaldere enn sist (min ${a.round()} °C, var ${b.round()} °C) – '
+          'Kaldere enn sist (min ${a.round()} °C$estimate, var ${b.round()} °C) – '
           'sjekk varmelag, lue og votter.',
         );
       } else if (a >= b + 2) {
         notes.add(
-          'Mildere enn sist (min ${a.round()} °C, var ${b.round()} °C).',
+          'Mildere enn sist (min ${a.round()} °C$estimate, var ${b.round()} °C).',
         );
       }
     }

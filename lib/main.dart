@@ -205,26 +205,32 @@ class _OnboardingGateState extends State<_OnboardingGate> {
 }
 
 /// Global busy/error surface driven by AppState.
+///
+/// Listens only to busy/error fields — a packing-list tick must not
+/// rebuild the whole shell (and the live map tab inside it).
 class _BusyWatcher extends StatelessWidget {
   final Widget child;
   const _BusyWatcher({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    // Surface errors once as a snackbar.
-    if (state.lastError != null) {
-      final msg = state.lastError!;
+    final busy = context.select<AppState, (bool, String?)>(
+      (s) => (s.busy, s.busyLabel),
+    );
+    final error = context.select<AppState, String?>((s) => s.lastError);
+    if (error != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        final msg = context.read<AppState>().takeError();
+        if (msg == null) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(msg)));
-        state.lastError = null;
       });
     }
     return Stack(
       children: [
         child,
-        if (state.busy)
+        if (busy.$1)
           Container(
             color: Colors.black26,
             child: Center(
@@ -240,7 +246,7 @@ class _BusyWatcher extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       ),
                       const SizedBox(width: 14),
-                      Text(state.busyLabel ?? 'Arbeider…'),
+                      Text(busy.$2 ?? 'Arbeider…'),
                     ],
                   ),
                 ),
