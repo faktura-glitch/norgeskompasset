@@ -35,6 +35,42 @@ void main() {
     expect(ids, isNot(contains('bag-shoulder')));
   });
 
+  test('summer day hike leaves the overnight kit at home', () {
+    final trip = Trip(
+      id: 'd',
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.summer,
+      activity: TripActivity.foot,
+      carry: CarryMode.backpack,
+      startDate: DateTime(2026, 7, 10),
+      endDate: DateTime(2026, 7, 10),
+    );
+    final ids = _ids(trip);
+    for (final id in [
+      'puffy',
+      'beanie',
+      'gloves',
+      'drychange',
+      'knife',
+      'hygiene',
+      'powerbank',
+      'wool-bottom',
+      'cup',
+    ]) {
+      expect(ids, isNot(contains(id)), reason: id);
+    }
+    expect(ids, containsAll(['shell', 'midlayer', 'windbag', 'pack-day', 'bottle']));
+    expect(ids, contains('mosquito'));
+    expect(ids, isNot(contains('cup')));
+    expect(ids, isNot(contains('pack-big')));
+    expect(ids, contains('rainpants'));
+    expect(_gen(trip).firstWhere((i) => i.id == 'wool-socks').quantity, 1);
+
+    trip.season = TripSeason.winter;
+    final winter = _ids(trip);
+    expect(winter, containsAll(['puffy', 'beanie', 'gloves', 'powerbank']));
+  });
+
   test('one tent per two people', () {
     final tent = _gen(_tent(TripSeason.summer, people: 4))
         .firstWhere((i) => i.id == 'tent');
@@ -166,13 +202,17 @@ void main() {
     required double wind,
     required double forecastEle,
     required double summit,
+    AccommodationType accommodation = AccommodationType.tent,
+    TripSeason season = TripSeason.summer,
+    TripActivity activity = TripActivity.foot,
   }) {
     final now = DateTime.now();
     final day = DateTime(now.year, now.month, now.day);
     final trip = Trip(
       id: 'wx',
-      accommodation: AccommodationType.tent,
-      season: TripSeason.summer,
+      accommodation: accommodation,
+      season: season,
+      activity: activity,
       startDate: day,
       endDate: day,
       weather: {
@@ -276,5 +316,140 @@ void main() {
         ),
       ];
     expect(_ids(trip), contains('gaiters'));
+  });
+
+  test('each trip type keeps only its own kit', () {
+    final run = Trip(
+      id: 'run',
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.summer,
+      activity: TripActivity.run,
+      startDate: DateTime(2026, 7, 10),
+      endDate: DateTime(2026, 7, 10),
+    );
+    final runIds = _ids(run);
+    expect(runIds, contains('runshoe'));
+    expect(runIds, isNot(contains('boots')));
+    expect(runIds, isNot(contains('wool-top')));
+
+    final track = Trip(
+      id: 'ski',
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.winter,
+      activity: TripActivity.ski,
+      skiStyle: SkiStyle.track,
+      startDate: DateTime(2026, 2, 10),
+      endDate: DateTime(2026, 2, 10),
+    );
+    final ski = _ids(track);
+    expect(ski, containsAll(['ski', 'wax']));
+    expect(ski, isNot(contains('skins')));
+    expect(ski, isNot(contains('tourhelmet')));
+    expect(_gen(track).firstWhere((i) => i.id == 'wool-socks').quantity, 2);
+
+    final staffed = Trip(
+      id: 'cabin',
+      accommodation: AccommodationType.cabin,
+      season: TripSeason.summer,
+      cabinType: CabinType.staffed,
+      startDate: DateTime(2026, 7, 1),
+      endDate: DateTime(2026, 7, 3),
+    );
+    final cabin = _ids(staffed);
+    expect(cabin, contains('cup'));
+    expect(cabin, isNot(contains('waterfilter')));
+    expect(cabin, isNot(contains('tent')));
+
+    final tent = _ids(_tent(TripSeason.summer));
+    expect(tent, containsAll(['cup', 'waterfilter', 'wool-top']));
+
+    final mildAutumn = _forecasted(
+      temp: 15,
+      precip: 0,
+      wind: 3,
+      forecastEle: 400,
+      summit: 500,
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.autumn,
+    );
+    final autumn = _ids(mildAutumn);
+    expect(autumn, isNot(contains('puffy')));
+    expect(autumn, isNot(contains('rainpants')));
+    expect(autumn, isNot(contains('powerbank')));
+    expect(autumn, containsAll(['shell', 'pack-day', 'mosquito']));
+  });
+
+  test('carry mode and season do not drop or borrow the wrong kit', () {
+    final dayBikeBags = Trip(
+      id: 'bb',
+      activity: TripActivity.bike,
+      carry: CarryMode.bikeBags,
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.summer,
+      startDate: DateTime(2026, 7, 10),
+      endDate: DateTime(2026, 7, 10),
+    );
+    expect(_ids(dayBikeBags), contains('bikebags'));
+    expect(_ids(dayBikeBags), isNot(contains('pack-day')));
+
+    final winterBike = Trip(
+      id: 'wb',
+      activity: TripActivity.bike,
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.winter,
+      startDate: DateTime(2026, 2, 2),
+      endDate: DateTime(2026, 2, 2),
+    );
+    expect(_ids(winterBike), contains('helmet'));
+    expect(_ids(winterBike), isNot(contains('beacon')));
+
+    final winterPaddle = _tent(TripSeason.winter)
+      ..activity = TripActivity.paddle
+      ..carry = CarryMode.canoe;
+    expect(_ids(winterPaddle), contains('pfd'));
+    expect(_ids(winterPaddle), isNot(contains('beacon')));
+    expect(_ids(_tent(TripSeason.winter)), contains('beacon'));
+
+    final dayPulk = Trip(
+      id: 'dp',
+      activity: TripActivity.foot,
+      carry: CarryMode.pulk,
+      accommodation: AccommodationType.dayHike,
+      season: TripSeason.winter,
+      startDate: DateTime(2026, 2, 2),
+      endDate: DateTime(2026, 2, 2),
+    );
+    expect(_ids(dayPulk), contains('pulk'));
+    expect(_ids(dayPulk), isNot(contains('pulk-daypack')));
+    expect(
+      _gen(dayPulk).firstWhere((i) => i.id == 'drybags-pulk').reason,
+      isNot(contains('Sovepose')),
+    );
+    expect(
+      _ids(_tent(TripSeason.winter)..carry = CarryMode.pulk),
+      contains('pulk-daypack'),
+    );
+
+    final touring = _tent(TripSeason.winter)
+      ..activity = TripActivity.ski
+      ..skiStyle = SkiStyle.touring;
+    expect(_ids(touring), contains('crampons'));
+    expect(
+      _ids(
+        _tent(TripSeason.winter)
+          ..activity = TripActivity.ski
+          ..skiStyle = SkiStyle.track,
+      ),
+      isNot(contains('crampons')),
+    );
+
+    expect(
+      _ids(_tent(TripSeason.summer)..withDog = true),
+      isNot(contains('dogsocks')),
+    );
+    expect(
+      _ids(_tent(TripSeason.winter)..withDog = true),
+      contains('dogsocks'),
+    );
   });
 }

@@ -69,8 +69,9 @@ class PackingEngine {
       }
     }
     if (minTemp != null && minTemp! <= 0) cold = true;
-    // Season is a stronger signal than a 9-day forecast: anything but
-    // high summer means cold nights are plausible in the mountains.
+    // Season is a stronger signal than a 9-day forecast for nights
+    // spent outside. A day trip with a known mild forecast does not
+    // inherit that cold kit.
     final winter = trip.season == TripSeason.winter;
     final shoulder =
         trip.season == TripSeason.spring || trip.season == TripSeason.autumn;
@@ -79,6 +80,16 @@ class PackingEngine {
     // shelter and footwear, whatever the calendar says.
     final snowDepth = trip.maxSnowDepthCm;
     final snowOnGround = (snowDepth ?? 0) >= 20;
+    if (snowOnGround) cold = true;
+    final dayTrip = trip.accommodation == AccommodationType.dayHike;
+    if (dayTrip &&
+        !winter &&
+        !snowOnGround &&
+        minTemp != null &&
+        minTemp! > 8 &&
+        !rain) {
+      cold = false;
+    }
 
     // Avalanche gear follows terrain risk, not season alone. An
     // explicit user answer wins; fetched Varsom warnings always mean
@@ -90,10 +101,15 @@ class PackingEngine {
         ? AvalancheRisk.yes
         : trip.avalancheTerrain == false
         ? AvalancheRisk.none
-        // Prepared tracks are not avalanche terrain.
+        // Prepared tracks are not avalanche terrain. A winter bike
+        // ride or paddle is not either. Unknown terrain on foot, on
+        // a run, or on skis off piste stays uncertain.
         : (trip.activity == TripActivity.ski && trip.skiStyle == SkiStyle.track)
         ? AvalancheRisk.none
-        : (winter || trip.activity == TripActivity.ski)
+        : (trip.activity == TripActivity.ski ||
+              (winter &&
+                  (trip.activity == TripActivity.foot ||
+                      trip.activity == TripActivity.run)))
         ? AvalancheRisk.uncertain
         : AvalancheRisk.none;
 
@@ -125,7 +141,12 @@ class PackingEngine {
       cold: cold || snowOnGround,
       snowDepthCm: snowDepth,
       // Short daylight outside summer makes a headlamp essential.
-      darkEvenings: trip.hikingDays > 1 || shoulder || winter,
+      // A mild day trip does not, even in the shoulder seasons.
+      darkEvenings:
+          winter ||
+          trip.hikingDays > 1 ||
+          (shoulder &&
+              (!dayTrip || minTemp == null || minTemp! <= 8 || rain)),
       avalanche: avalanche,
       withDog: trip.withDog ?? profile?.withDog ?? false,
       lightPacker: profile?.lightPacker ?? false,

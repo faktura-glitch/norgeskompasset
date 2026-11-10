@@ -13,6 +13,26 @@ void main() {
     );
   });
 
+  test('compact row keeps operator, beds and opening hours', () {
+    final hut = hutFromCompact([
+      'Finsehytta',
+      60.6,
+      7.5,
+      1,
+      1222,
+      'DNT',
+      '140',
+      'Jun-Sep',
+    ]);
+    expect(hut, isNotNull);
+    expect(hut!.operator, 'DNT');
+    expect(hut.capacity, '140');
+    expect(hut.openingHours, 'Jun-Sep');
+    final bare = hutFromCompact(['Koia', 60, 7, 0, null]);
+    expect(bare!.openingHours, isEmpty);
+    expect(bare.operator, isEmpty);
+  });
+
   test('parses staffed nodes and unstaffed building ways', () {
     final huts = parseHuts({
       'elements': [

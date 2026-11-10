@@ -51,8 +51,9 @@ class MealPlanner {
     return result;
   }
 
-  /// Default meals per day. Multi-day trips get dinners; day trips get
-  /// lunch + snacks only.
+  /// Default meals per day. Overnight trips get breakfast, lunch and
+  /// a dinner for every night. The day you walk out has no dinner.
+  /// Day trips get lunch and snacks only.
   ///
   /// [targetKcalPerDay] is the route-aware energy estimate (distance,
   /// ascent, pack weight, cold). When the default portions land far
@@ -83,8 +84,12 @@ class MealPlanner {
         ? diet.any((d) => d.toLowerCase().contains('rehydrert'))
         : (profile?.prefersDehydrated ?? false);
 
+    // A day trip is lunch and snacks, even if the dates span more
+    // than one calendar day. An overnight trip eats dinner on every
+    // night and skips it on the day you walk out.
+    final overnight = trip.accommodation != AccommodationType.dayHike;
     for (var day = 1; day <= days; day++) {
-      if (days > 1) {
+      if (overnight) {
         meals.add(
           PlannedMeal(
             id: _id(),
@@ -105,20 +110,22 @@ class MealPlanner {
             kcalPer100g: 300,
           ),
         );
-        meals.add(
-          PlannedMeal(
-            id: _id(),
-            day: day,
-            type: MealType.dinner,
-            name: veg
-                ? 'Tørket vegetargryte med couscous'
-                : dehydrated
-                ? 'Turmat (frysetørket middag)'
-                : 'Hjemmelaget gryte – tørket og pakkes porsjonsvis',
-            gramsPerPerson: 160,
-            kcalPer100g: veg ? 400 : (dehydrated ? 460 : 420),
-          ),
-        );
+        if (day < days) {
+          meals.add(
+            PlannedMeal(
+              id: _id(),
+              day: day,
+              type: MealType.dinner,
+              name: veg
+                  ? 'Tørket vegetargryte med couscous'
+                  : dehydrated
+                  ? 'Turmat (frysetørket middag)'
+                  : 'Hjemmelaget gryte – tørket og pakkes porsjonsvis',
+              gramsPerPerson: 160,
+              kcalPer100g: veg ? 400 : (dehydrated ? 460 : 420),
+            ),
+          );
+        }
       } else {
         meals.add(
           PlannedMeal(

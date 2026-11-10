@@ -71,29 +71,39 @@ class HutService {
     if (decoded is! List) {
       throw const ServiceException('Hytteregisteret kunne ikke leses.');
     }
-    final out = <TouristHut>[];
-    for (final row in decoded) {
-      if (row is! List || row.length < 4) continue;
-      final lat = row[1];
-      final lon = row[2];
-      if (lat is! num || lon is! num) continue;
-      final name = '${row[0]}'.trim();
-      final ele = row.length > 4 && row[4] is num
-          ? (row[4] as num).toDouble()
-          : null;
-      out.add(
-        TouristHut(
-          id: '${lat.toStringAsFixed(5)},${lon.toStringAsFixed(5)}',
-          name: name.isEmpty ? 'Hytte uten navn' : name,
-          kind: row[3] == 1 ? HutKind.staffed : HutKind.unstaffed,
-          point: LatLng(lat.toDouble(), lon.toDouble()),
-          elevation: ele,
-        ),
-      );
-    }
+    final out = <TouristHut>[
+      for (final row in decoded)
+        if (row is List) ?hutFromCompact(row),
+    ];
     _catalog = out;
     return out;
   }
+}
+
+/// One compact snapshot row:
+/// `[name, lat, lon, kind 1/0, ele|null, operator, capacity, openingHours]`.
+/// Operator, capacity and opening hours are empty when the snapshot has no value.
+TouristHut? hutFromCompact(List row) {
+  if (row.length < 4) return null;
+  final lat = row[1];
+  final lon = row[2];
+  if (lat is! num || lon is! num) return null;
+  String textAt(int index) {
+    if (row.length <= index || row[index] == null) return '';
+    return '${row[index]}'.trim();
+  }
+
+  final name = '${row[0]}'.trim();
+  return TouristHut(
+    id: '${lat.toStringAsFixed(5)},${lon.toStringAsFixed(5)}',
+    name: name.isEmpty ? 'Hytte uten navn' : name,
+    kind: row[3] == 1 ? HutKind.staffed : HutKind.unstaffed,
+    point: LatLng(lat.toDouble(), lon.toDouble()),
+    elevation: row.length > 4 && row[4] is num ? (row[4] as num).toDouble() : null,
+    operator: textAt(5),
+    capacity: textAt(6),
+    openingHours: textAt(7),
+  );
 }
 
 /// Parses an Overpass JSON document. Public so tests can use a fixture

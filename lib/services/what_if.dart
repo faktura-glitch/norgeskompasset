@@ -55,7 +55,7 @@ extension TripNeedX on TripNeed {
   };
 
   Set<String> get gearIds => switch (this) {
-    TripNeed.map => const {'map', 'mapcase', 'compass'},
+    TripNeed.map => const {'map', 'mapcase'},
     TripNeed.light => const {'headlamp', 'bikelights'},
     TripNeed.warmth => const {'midlayer', 'puffy', 'extrawarm'},
     TripNeed.rain => const {'shell', 'rainpants'},
@@ -77,7 +77,7 @@ extension TripNeedX on TripNeed {
 
   /// Word prefixes for gear the user typed in themselves.
   List<String> get keywords => switch (this) {
-    TripNeed.map => const ['kart', 'kompass'],
+    TripNeed.map => const ['kart', 'kartmappe'],
     TripNeed.light => const ['hodelykt', 'lommelykt', 'lykt', 'lampe'],
     TripNeed.warmth => const [
       'fleece',
@@ -108,6 +108,9 @@ final _catalogIds = {for (final g in gearCatalog) g.id};
 bool coversNeed(PackingItem item, TripNeed need) {
   if (need.gearIds.contains(item.id)) return true;
   if (_catalogIds.contains(item.id)) return false;
+  if (need == TripNeed.map && item.name.toLowerCase().contains('offline')) {
+    return false;
+  }
   final words = item.name.toLowerCase().split(RegExp(r'[^a-zæøå0-9]+'));
   return words.any((w) => need.keywords.any(w.startsWith));
 }
@@ -132,6 +135,23 @@ NeedCheck checkNeed(Iterable<PackingItem> items, TripNeed need) =>
       for (final i in items)
         if (coversNeed(i, need)) i,
     ]);
+
+/// Paper map and compass together. Offline kart and a compass alone
+/// do not count as navigation backup.
+NeedCheck navigationCheck(Iterable<PackingItem> items) {
+  final maps = checkNeed(items, TripNeed.map);
+  final compass = [
+    for (final i in items)
+      if (i.id == 'compass' ||
+          (!_catalogIds.contains(i.id) &&
+              i.name.toLowerCase().contains('kompass')))
+        i,
+  ];
+  if (maps.items.isEmpty || compass.isEmpty) {
+    return const NeedCheck(TripNeed.map, []);
+  }
+  return NeedCheck(TripNeed.map, [...maps.items, ...compass]);
+}
 
 class WhatIf {
   final String title;
@@ -188,7 +208,10 @@ List<WhatIf> whatIfChecks(Trip trip, TripConditions c) {
       advice:
           'Last ned kart før du drar, hold mobilen varm i en innerlomme og '
           'bruk flymodus når du ikke trenger dekning.',
-      checks: check([TripNeed.map, TripNeed.power]),
+      checks: [
+        navigationCheck(items),
+        if (c.overnight || c.darkEvenings) checkNeed(items, TripNeed.power),
+      ],
     ),
     WhatIf(
       title: 'Du blir våt og kald',
@@ -197,7 +220,7 @@ List<WhatIf> whatIfChecks(Trip trip, TripConditions c) {
           'spis og drikk jevnlig.',
       checks: check([
         TripNeed.rain,
-        TripNeed.dry,
+        if (!isLightDay(c) || paddling) TripNeed.dry,
         TripNeed.warmth,
         TripNeed.shelter,
       ]),

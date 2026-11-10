@@ -715,6 +715,20 @@ void main() {
       expect(plan.totalFoodWeightGrams, greaterThan(0));
       final shopping = plan.shoppingList;
       expect(shopping, isNotEmpty);
+      expect(plan.meals.any((m) => m.type == MealType.dinner), isFalse);
+
+      final camp = Trip(id: 'camp', accommodation: AccommodationType.tent);
+      camp.startDate = DateTime(2026, 7, 1);
+      camp.endDate = DateTime(2026, 7, 2);
+      final campPlan = MealPlanner.generate(camp);
+      expect(
+        campPlan.meals.any((m) => m.day == 1 && m.type == MealType.dinner),
+        isTrue,
+      );
+      expect(
+        campPlan.meals.any((m) => m.day == 2 && m.type == MealType.dinner),
+        isFalse,
+      );
     });
   });
 

@@ -6,6 +6,7 @@ import '../models/route_models.dart';
 import '../models/stage.dart';
 import '../models/trip.dart';
 import 'trip_analysis.dart';
+import 'what_if.dart';
 
 /// Combines route, elevation, weather and packing state into
 /// transparent, prioritized recommendations. Never claims a trip is
@@ -296,27 +297,31 @@ class RecommendationEngine {
     bool hasItem(String needle) =>
         packed.any((i) => i.name.toLowerCase().contains(needle));
     if (packed.isNotEmpty) {
-      if (trip.hikingDays > 1 && !hasItem('hodelykt')) {
+      final lampMatters =
+          trip.hikingDays > 1 || trip.season != TripSeason.summer;
+      if (lampMatters && !hasItem('hodelykt')) {
         out.add(
           Recommendation(
             id: _id(),
             level: RecommendationLevel.caution,
             title: 'Hodelykt mangler i pakkelisten',
-            observation:
-                'Pakkelisten har ingen hodelykt for en fler dagers tur.',
-            why: 'Hodelykt er nødvendig ved overnatting og er viktig sikkerhetsutstyr.',
+            observation: trip.hikingDays > 1
+                ? 'Pakkelisten har ingen hodelykt for en tur over flere dager.'
+                : 'Pakkelisten har ingen hodelykt, og dagene er korte i denne årstiden.',
+            why: 'Hodelykt er nødvendig ved overnatting og når det blir mørkt tidlig.',
             action: 'Legg til hodelykt med reservebatterier i pakkelisten.',
             sourceNote: 'Pakkeliste-sjekk',
           ),
         );
       }
-      if (!hasItem('kart') || !hasItem('kompass')) {
+      if (navigationCheck(packed).state == NeedState.missing) {
         out.add(
           Recommendation(
             id: _id(),
             level: RecommendationLevel.caution,
             title: 'Kart og kompass bør være med',
-            observation: 'Navigasjonsutstyr mangler eller er ufullstendig.',
+            observation:
+                'Papirkart og kompass mangler. Offline kart på mobilen regnes ikke som backup.',
             why: 'Elektronikk kan svikte – papirkart og kompass er standard backup.',
             action: 'Legg til papirkart og kompass i pakkelisten.',
             sourceNote: 'Pakkeliste-sjekk',

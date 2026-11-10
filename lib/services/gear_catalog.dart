@@ -2,6 +2,22 @@ import '../models/gear.dart';
 import '../models/packing.dart';
 import '../models/trip.dart';
 
+/// A day trip that should not inherit the overnight or winter kit.
+/// Summer without a forecast counts as light. Other seasons count as
+/// light only when a forecast says it is mild, dry and not cold.
+/// Public for the other rule engines, so «hva hvis» does not demand
+/// gear a light day trip was deliberately told to leave at home.
+bool isLightDay(TripConditions c) => _lightDay(c);
+
+bool _lightDay(TripConditions c) {
+  if (c.accommodation != AccommodationType.dayHike) return false;
+  if (c.season == TripSeason.winter || c.cold || c.snow || c.rain) {
+    return false;
+  }
+  if (c.minTemp == null) return c.season == TripSeason.summer;
+  return c.minTemp! >= 12;
+}
+
 /// Master gear catalog — one flat list, filtered strictly by
 /// [GearItem.matches]. Every activity/carry/accommodation/weather rule
 /// lives on the item itself, so a summer bike ride can never pull in
@@ -80,6 +96,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.navigation,
     220,
     reason: 'Ekstra strøm til telefonen og nødkommunikasjon',
+    extra: (c) => c.overnight || c.darkEvenings,
     boostTo: PackingPriority.required,
     boostOnOvernight: true,
   ),
@@ -89,6 +106,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.navigation,
     30,
     reason: 'For å lade mobilen fra powerbanken',
+    extra: (c) => c.overnight || c.darkEvenings,
     priority: PackingPriority.optional,
     boostTo: PackingPriority.recommended,
     boostOnOvernight: true,
@@ -119,7 +137,14 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     reason: 'Seks korte signaler i minuttet = nødsignal i fjellet',
   ),
-  GearItem('knife', 'Kniv/multiverktøy', PackingCategory.safetyFirstAid, 150),
+  GearItem(
+    'knife',
+    'Kniv/multiverktøy',
+    PackingCategory.safetyFirstAid,
+    150,
+    extra: (c) => !_lightDay(c),
+    reason: 'Nyttig på tur med overnatting eller når været krever mer utstyr',
+  ),
   GearItem(
     'sunscreen',
     'Solkrem og leppepomade',
@@ -132,6 +157,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.safetyFirstAid,
     100,
     reason: 'Midlertidig reparasjon av sekk, klær eller utstyr',
+    extra: (c) => !_lightDay(c),
     priority: PackingPriority.optional,
     boostTo: PackingPriority.recommended,
     boostOnOvernight: true,
@@ -143,6 +169,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     150,
     perPerson: true,
     consumable: true,
+    extra: (c) => !_lightDay(c),
     boostTo: PackingPriority.required,
     boostOnOvernight: true,
   ),
@@ -191,6 +218,11 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.required,
     reason: 'Basisplagg i ull for varme og fukttransport',
+    extra: (c) =>
+        !(_lightDay(c) &&
+            (c.activity == TripActivity.bike ||
+                c.activity == TripActivity.run ||
+                (c.minTemp != null && c.minTemp! >= 18))),
   ),
   GearItem(
     'wool-bottom',
@@ -200,6 +232,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.optional,
     reason: 'Ekstra varme ved stopp og kalde forhold',
+    extra: (c) => !_lightDay(c),
     boostTo: PackingPriority.recommended,
     boostOnOvernight: true,
   ),
@@ -223,6 +256,18 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     priority: PackingPriority.required,
     activities: {TripActivity.foot},
     reason: 'Innjinjet fottøy tilpasset terrenget',
+    extra: (c) => c.activity != TripActivity.run,
+  ),
+  GearItem(
+    'runshoe',
+    'Løpesko',
+    PackingCategory.clothing,
+    600,
+    perPerson: true,
+    worn: true,
+    priority: PackingPriority.required,
+    activities: {TripActivity.run},
+    reason: 'Løpesko til turen – fjellstøvler er for fottur',
   ),
   GearItem(
     'skiboots',
@@ -252,6 +297,12 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     qty: 2,
     qtyOvernight: 3,
+    qtyFn: (c) {
+      final pairs = c.accommodation != AccommodationType.dayHike
+          ? (c.overnight ? 3 : 2)
+          : (c.cold || c.rain || c.season == TripSeason.winter ? 2 : 1);
+      return (pairs * c.people).toDouble();
+    },
     priority: PackingPriority.required,
     reason: 'Tørre sokker forebygger gnagsår',
   ),
@@ -281,6 +332,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     reasonFn: (c) => c.cold
         ? 'Temperaturer nær eller under null er varslet'
         : 'Ekstra isolasjon til pauser og kvelder',
+    extra: (c) => !_lightDay(c),
     warmExcluded: {TripActivity.bike},
     boostTo: PackingPriority.required,
     boostOnCold: true,
@@ -306,6 +358,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     reasonFn: (c) => c.rain
         ? 'Nedbør er varslet – regnbukse anbefales sterkt'
         : 'Tilleggsbeskyttelse ved regn',
+    extra: (c) => c.rain || !_lightDay(c) || c.minTemp == null,
     boostTo: PackingPriority.required,
     boostOnRain: true,
   ),
@@ -316,6 +369,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     60,
     perPerson: true,
     reason: 'Varmeplagg – mye varme forsvinner via hodet',
+    extra: (c) => !_lightDay(c),
     boostTo: PackingPriority.required,
     boostOnCold: true,
     boostBelowC: 10,
@@ -329,6 +383,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     reasonFn: (c) => c.strongWind
         ? 'Kraftig vind varslet – vindkjøling på hender'
         : 'Varme ved kalde forhold',
+    extra: (c) => !_lightDay(c),
     boostTo: PackingPriority.required,
     boostOnCold: true,
     boostOnWind: true,
@@ -341,6 +396,11 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     600,
     perPerson: true,
     reason: 'Tørt skift i vanntett pose – viktig ved gjennombløting',
+    extra: (c) =>
+        !_lightDay(c) ||
+        c.activity == TripActivity.paddle ||
+        c.carry == CarryMode.canoe ||
+        c.carry == CarryMode.kayak,
     boostTo: PackingPriority.required,
     boostOnOvernight: true,
   ),
@@ -350,6 +410,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.clothing,
     40,
     reason: 'Lett ekstra varme rundt hals og hode',
+    extra: (c) => !_lightDay(c),
     perPerson: true,
     priority: PackingPriority.optional,
   ),
@@ -419,8 +480,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     priority: PackingPriority.required,
     carryModes: {CarryMode.backpack},
     heavyRainOnly: true,
-    reason:
-        'Minst én time med mye regn er varslet – sovepose og ull må holdes tørt',
+    reasonFn: (c) => c.overnight
+        ? 'Minst én time med mye regn er varslet – sovepose og ull må holdes tørt'
+        : 'Minst én time med mye regn er varslet – ull og niste må holdes tørt',
   ),
   GearItem(
     'bikebags',
@@ -429,8 +491,10 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     1200,
     priority: PackingPriority.required,
     activities: {TripActivity.bike},
-    extra: (c) => c.multiDay,
-    reason: 'Flerdagstur på sykkel – last på sykkelen, ikke på ryggen',
+    extra: (c) => c.multiDay || c.carry == CarryMode.bikeBags,
+    reasonFn: (c) => c.multiDay
+        ? 'Flerdagstur på sykkel – last på sykkelen, ikke på ryggen'
+        : 'Sykkelvesker er valgt som bæremåte på denne turen',
   ),
   GearItem(
     'pulk',
@@ -468,7 +532,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     300,
     priority: PackingPriority.required,
     carryModes: {CarryMode.pulk},
-    reason: 'Sovepose og alle klær må pakkes vanntett i pulken',
+    reasonFn: (c) => c.overnight
+        ? 'Sovepose og alle klær må pakkes vanntett i pulken'
+        : 'Klær og niste må pakkes vanntett i pulken',
   ),
   GearItem(
     'pulk-daypack',
@@ -477,6 +543,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     800,
     perPerson: true,
     carryModes: {CarryMode.pulk},
+    extra: (c) => c.overnight,
     reason: 'Til toppturer fra basecamp – pulken dras ikke til topps',
   ),
   GearItem(
@@ -636,7 +703,11 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     800,
     priority: PackingPriority.optional,
     seasons: {TripSeason.winter},
-    reason: 'Ved bratt skareføre eller toppturer',
+    activities: {TripActivity.foot, TripActivity.ski},
+    extra: (c) =>
+        (c.activity == TripActivity.ski && c.skiStyle == SkiStyle.touring) ||
+        (c.activity == TripActivity.foot && (c.maxSlopeDegrees ?? 0) >= 30),
+    reason: 'Bratt skareføre til fots, eller topptur',
   ),
 
   // ── Skred ───────────────────────────────────────────────
@@ -775,7 +846,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     priority: PackingPriority.required,
     carryModes: {CarryMode.canoe},
-    reason: 'Sovepose, sko og ett helt klesskift pakkes helt vanntett',
+    reason: 'Klær og utstyr pakkes helt vanntett',
   ),
   GearItem(
     'watershoes',
@@ -1124,6 +1195,7 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     perPerson: true,
     boostTo: PackingPriority.required,
     boostOnOvernight: true,
+    extra: (c) => c.overnight,
   ),
   GearItem(
     'waterfilter',
@@ -1131,6 +1203,9 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.foodKitchen,
     80,
     minDays: 2,
+    extra: (c) =>
+        c.tent ||
+        (c.cabin && c.cabinTypesUsed.any((t) => t != CabinType.staffed)),
     reason: 'Sikker vanntilgang på flere dagers tur',
   ),
   GearItem(
@@ -1155,7 +1230,6 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     'Myggspray/myggnett',
     PackingCategory.safetyFirstAid,
     100,
-    minDays: 2,
     seasons: {TripSeason.spring, TripSeason.summer, TripSeason.autumn},
     reason: 'Mygg og knott er vanlig i norske fjellområder om sommeren',
   ),
@@ -1294,7 +1368,8 @@ final List<GearItem> gearCatalog = List.unmodifiable([
     PackingCategory.additional,
     60,
     dogOnly: true,
-    reason: 'Beskytter potene mot sårbeinthet, is og grovt underlag',
+    extra: (c) => c.cold || c.snow,
+    reason: 'Beskytter potene mot is og skare',
   ),
   GearItem(
     'dogbowl',

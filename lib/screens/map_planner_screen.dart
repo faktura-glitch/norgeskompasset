@@ -112,7 +112,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     ),
                   ),
                   StatusPill(
-                    e.difficulty.gradeLabel,
+                    e.difficulty.label,
                     difficultyColor(e.difficulty),
                   ),
                 ],
@@ -437,9 +437,9 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                 Text('Åpent: ${hut.openingHours}'),
               ],
               const SizedBox(height: 8),
-              const Text(
-                'Fra OpenStreetMap. Betjent/ubetjent følger kart-taggen, ikke en DNT-bekreftelse. Sjekk åpningstid før du drar.',
-                style: TextStyle(fontSize: 12),
+              Text(
+                _hutRegisterNote(hut),
+                style: const TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -458,6 +458,117 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
         ),
       ),
     );
+  }
+
+  String _hutRegisterNote(TouristHut hut) {
+    final missing = [
+      if (hut.openingHours.isEmpty) 'åpningstid',
+      if (hut.operator.isEmpty) 'hvem som driver den',
+      if (hut.capacity.isEmpty) 'sengeplass',
+    ];
+    final gap = missing.isEmpty
+        ? ''
+        : ' ${missing.join(', ')} står ikke i registeret.';
+    return 'Øyeblikksbilde fra OpenStreetMap, ikke et direkte oppslag. Betjent eller ubetjent følger kart-taggen, ikke en DNT-bekreftelse.$gap';
+  }
+
+  void _showTrailList() {
+    final trails = [..._trails]..sort((a, b) {
+      final an = a.name.isEmpty ? a.typeLabel : a.name;
+      final bn = b.name.isEmpty ? b.typeLabel : b.name;
+      return an.toLowerCase().compareTo(bn.toLowerCase());
+    });
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: SizedBox(
+          height: 460,
+          child: ListView(
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Registrerte ruter i kartutsnittet. Dekningen i Turrutebasen varierer. Traséen er kartdata, ikke bekreftet fremkommelighet.',
+                ),
+              ),
+              for (final trail in trails)
+                ListTile(
+                  title: Text(
+                    trail.name.isEmpty ? trail.typeLabel : trail.name,
+                  ),
+                  subtitle: Text(_trailSubtitle(trail)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showTrail(trail);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTrail(TrailRoute trail) {
+    final title = trail.name.isEmpty ? trail.typeLabel : trail.name;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(_trailSubtitle(trail)),
+              const SizedBox(height: 8),
+              const Text(
+                'Fra Kartverkets turrutebase. Kartdata, ikke bekreftet fremkommelighet i terrenget.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: trail.points.length < 2
+                      ? null
+                      : () async {
+                          Navigator.pop(ctx);
+                          await context.read<AppState>().startFromTrail(trail);
+                          if (!mounted) return;
+                          nkToast(
+                            context,
+                            '«$title» er lagt inn som tur. Høyde og vær hentes i bakgrunnen.',
+                          );
+                        },
+                  icon: const Icon(Icons.route),
+                  label: const Text('Bruk som tur'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _trailSubtitle(TrailRoute trail) {
+    return [
+      trail.typeLabel,
+      fmtKm(trail.distanceMeters),
+      if (trail.grading.isNotEmpty) trail.grading,
+      if (trail.maintainer.isNotEmpty) trail.maintainer,
+    ].join(' · ');
   }
 
   void _useHutOvernight(TouristHut hut) {
@@ -1107,8 +1218,10 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     points: [
                       for (final p in _catalogSelected!.route.points) p.latLng,
                     ],
-                    color: NkColors.primaryBlue.withValues(alpha: 0.6),
-                    strokeWidth: 4,
+                    color: difficultyColor(
+                      _catalogSelected!.difficulty,
+                    ).withValues(alpha: 0.9),
+                    strokeWidth: 5,
                   ),
                 ],
               ),
@@ -1124,7 +1237,7 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     if (!e.hidden && e.route.start != null)
                       Marker(
                         point: e.route.start!,
-                        width: 180,
+                        width: 220,
                         height: 48,
                         child: GestureDetector(
                           onTap: () => _showCatalogEntry(e),
@@ -1293,6 +1406,11 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                         onPressed: () =>
                             _fetchTrails(_mapCtrl.camera.visibleBounds),
                         child: const Text('Prøv igjen'),
+                      )
+                    else if (!_trailLoading && _trails.isNotEmpty)
+                      TextButton(
+                        onPressed: _showTrailList,
+                        child: const Text('Velg en rute som tur'),
                       ),
                   ],
                 ),
@@ -1542,8 +1660,8 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                     ),
                     const PopupMenuDivider(),
                     // Ski tracks are a separate toggle (on by default on
-                    // ski trips). The Turrutebase trail layer is not in
-                    // the menu any more – coverage was too patchy.
+                    // ski trips). Turrutebasen stays off until asked for:
+                    // coverage is patchy, and the chip says so.
                     CheckedPopupMenuItem(
                       value: 'ski',
                       checked: _skiOverlay,
@@ -1560,9 +1678,16 @@ class _MapPlannerScreenState extends State<MapPlannerScreen> {
                       child: const Text('Turisthytter · OpenStreetMap'),
                     ),
                     CheckedPopupMenuItem(
+                      value: 'trails',
+                      checked: _trailLayer,
+                      child: const Text(
+                        'Turruter · Kartverket, dekningen varierer',
+                      ),
+                    ),
+                    CheckedPopupMenuItem(
                       value: 'delte',
                       checked: _catalogLayer,
-                      child: const Text('Delte turer · Lett/Middels/Krevende'),
+                      child: const Text('Delte turer · fargen er graden'),
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
@@ -2422,10 +2547,7 @@ class _CatalogPill extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? NkColors.primaryBlue : color,
-            width: selected ? 2 : 1,
-          ),
+          border: Border.all(color: color, width: selected ? 2.5 : 1),
           boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
         ),
         child: Row(
@@ -2435,6 +2557,15 @@ class _CatalogPill extends StatelessWidget {
               width: 10,
               height: 10,
               decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              entry.difficulty.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
             ),
             const SizedBox(width: 6),
             Flexible(
@@ -2447,11 +2578,6 @@ class _CatalogPill extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              entry.difficulty.gradeLabel,
-              style: TextStyle(fontSize: 12, color: NkColors.textSecondary),
             ),
           ],
         ),

@@ -217,7 +217,7 @@ class TripReadiness {
           'Førstehjelp mangler på listen.',
         );
       }
-      if (checkNeed(items, TripNeed.map).state == NeedState.missing) {
+      if (navigationCheck(items).state == NeedState.missing) {
         add(
           ReadinessArea.safety,
           ReadinessLevel.missing,

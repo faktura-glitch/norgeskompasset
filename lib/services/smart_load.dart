@@ -17,7 +17,7 @@ class LoadSuggestion {
 
 /// Gear that does the same job. Two of these rarely add safety.
 const _overlapFamilies = <String, List<String>>{
-  'lyskilder': ['hodelykt', 'lommelykt', 'lykt', 'lampe'],
+  'lyskilder': ['hodelykt', 'lommelykt', 'pannelykt'],
   'kniver/verktøy': ['kniv', 'multiverktøy', 'multitool'],
   'sitteunderlag': ['sitteunderlag', 'sittepute'],
   'kopper': ['kopp', 'krus'],

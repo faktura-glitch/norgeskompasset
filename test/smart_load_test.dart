@@ -78,6 +78,23 @@ void main() {
       ]);
       expect(tips, isEmpty);
     });
+
+    test('sykkellykt er ikke en ekstra hodelykt', () {
+      final tips = smartLoadSuggestions([
+        _item(
+          'Hodelykt',
+          PackingCategory.safetyFirstAid,
+          priority: PackingPriority.required,
+        ),
+        _item(
+          'Sykkellykt-sett (foran + bak)',
+          PackingCategory.safetyFirstAid,
+          priority: PackingPriority.recommended,
+          grams: 100,
+        ),
+      ]);
+      expect(tips, isEmpty);
+    });
   });
 
   group('Endringer etter nytt værvarsel', () {

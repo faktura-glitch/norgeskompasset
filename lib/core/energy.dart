@@ -91,8 +91,8 @@ double _kcalFor(double met, double kg, double minutes) =>
 /// Estimates daily energy need for a typical stage day on [trip].
 /// Averages across stages so one heavy day doesn't dominate.
 /// [bodyKg] comes from the user profile (75 kg fallback);
-/// [packKg] is the generated list's total weight divided by
-/// participants — personal gear per person, shared gear split.
+/// [packKg] is the carried weight divided by participants. Worn
+/// items are on the body and are not counted as pack load.
 /// [minTempC] is the coldest forecast temperature if fetched.
 EnergyEstimate estimateDailyKcal(
   Trip trip, {
@@ -102,7 +102,9 @@ EnergyEstimate estimateDailyKcal(
   final stages = trip.stages;
   final people = trip.participants.clamp(1, 20);
   final packKg =
-      trip.packingList.fold(0.0, (s, i) => s + i.totalWeightGrams) /
+      trip.packingList
+          .where((i) => !i.worn)
+          .fold(0.0, (s, i) => s + i.totalWeightGrams) /
       1000 /
       people;
   final totalKg = bodyKg + packKg;
